@@ -15,7 +15,7 @@ endif()
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -D_DEBUG")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -DNDEBUG")
 
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 if (NOT TARGET Framework)
@@ -52,7 +52,10 @@ add_library(CodeGen
 	../src/Jitter_CodeGen_x86_Alu.h
 	../src/Jitter_CodeGen_x86_Div.h
 	../src/Jitter_CodeGen_x86_Fpu.cpp
+	../src/Jitter_CodeGen_x86_Fpu_Avx.cpp
+	../src/Jitter_CodeGen_x86_Fpu_Sse.cpp
 	../src/Jitter_CodeGen_x86_Md.cpp
+	../src/Jitter_CodeGen_x86_Md_Avx.cpp
 	../src/Jitter_CodeGen_x86_Mul.h
 	../src/Jitter_CodeGen_x86_Shift.h
 	../src/Jitter_CodeGen.cpp
@@ -62,10 +65,12 @@ add_library(CodeGen
 	../src/Jitter_RegAlloc.cpp
 	../src/Jitter_Statement.cpp
 	../src/Jitter_SymbolTable.cpp
+	../src/LiteralPool.cpp
 	../src/MachoObjectFile.cpp
 	../src/MemoryFunction.cpp
 	../src/ObjectFile.cpp
 	../src/X86Assembler.cpp
+	../src/X86Assembler_Avx.cpp
 	../src/X86Assembler_Fpu.cpp
 	../src/X86Assembler_Sse.cpp
 
@@ -86,6 +91,8 @@ add_library(CodeGen
 	../include/Jitter_SymbolRef.h
 	../include/Jitter_SymbolTable.h
 	../include/Jitter.h
+	../include/Literal128.h
+	../include/LiteralPool.h
 	../include/MachoDefs.h
 	../include/MachoObjectFile.h
 	../include/MemoryFunction.h
@@ -113,14 +120,18 @@ set(CodeGenTest_SRC
 	../tests/FpIntMixTest.cpp
 	../tests/FpuTest.cpp
 	../tests/HugeJumpTest.cpp
+	../tests/HugeJumpTestLiteral.cpp
+	../tests/HugeJumpTestLiteral.h
 	../tests/LogicTest.cpp
 	../tests/Logic64Test.cpp
 	../tests/LzcTest.cpp
 	../tests/Main.cpp
 	../tests/MdAddTest.cpp
 	../tests/MdCallTest.cpp
+	../tests/MdCallTest.h
 	../tests/MdCmpTest.cpp
 	../tests/MdFpFlagTest.cpp
+	../tests/MdFpFlagTest.h
 	../tests/MdFpTest.cpp
 	../tests/MdLogicTest.cpp
 	../tests/MdManipTest.cpp
@@ -139,6 +150,8 @@ set(CodeGenTest_SRC
 	../tests/MemAccess16Test.h
 	../tests/MemAccess64Test.cpp
 	../tests/MemAccess64Test.h
+	../tests/MemAccessIdxTest.cpp
+	../tests/MemAccessIdxTest.h
 	../tests/MemAccessRefTest.cpp
 	../tests/MemAccessRefTest.h
 	../tests/Merge64Test.cpp

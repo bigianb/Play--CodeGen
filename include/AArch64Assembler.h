@@ -1,7 +1,9 @@
 #pragma once
 
 #include <map>
+#include <vector>
 #include "Stream.h"
+#include "Literal128.h"
 
 class CAArch64Assembler
 {
@@ -78,6 +80,7 @@ public:
 	void     ClearLabels();
 	void     MarkLabel(LABEL);
 	void     ResolveLabelReferences();
+	void     ResolveLiteralReferences();
 
 	void    Add(REGISTER32, REGISTER32, REGISTER32);
 	void    Add(REGISTER64, REGISTER64, REGISTER64);
@@ -128,6 +131,8 @@ public:
 	void    Fadd_1s(REGISTERMD, REGISTERMD, REGISTERMD);
 	void    Fadd_4s(REGISTERMD, REGISTERMD, REGISTERMD);
 	void    Fcmeqz_4s(REGISTERMD, REGISTERMD);
+	void    Fcmge_4s(REGISTERMD, REGISTERMD, REGISTERMD);
+	void    Fcmgt_4s(REGISTERMD, REGISTERMD, REGISTERMD);
 	void    Fcmltz_4s(REGISTERMD, REGISTERMD);
 	void    Fcmp_1s(REGISTERMD, REGISTERMD);
 	void    Fcvtzs_1s(REGISTERMD, REGISTERMD);
@@ -150,10 +155,12 @@ public:
 	void    Ld1_4s(REGISTERMD, REGISTER64);
 	void    Ldp_PostIdx(REGISTER64, REGISTER64, REGISTER64, int32);
 	void    Ldr(REGISTER32, REGISTER64, uint32);
+	void    Ldr(REGISTER32, REGISTER64, REGISTER64, bool);
 	void    Ldr(REGISTER64, REGISTER64, uint32);
 	void    Ldrb(REGISTER32, REGISTER64, uint32);
 	void    Ldrh(REGISTER32, REGISTER64, uint32);
 	void    Ldr_Pc(REGISTER64, uint32);
+	void    Ldr_Pc(REGISTERMD, const LITERAL128&);
 	void    Ldr_1s(REGISTERMD, REGISTER64, uint32);
 	void    Ldr_1q(REGISTERMD, REGISTER64, uint32);
 	void    Lsl(REGISTER32, REGISTER32, uint8);
@@ -175,6 +182,7 @@ public:
 	void    Movz(REGISTER64, uint16, uint8);
 	void    Msub(REGISTER32, REGISTER32, REGISTER32, REGISTER32);
 	void    Mvn(REGISTER32, REGISTER32);
+	void    Mvn_16b(REGISTERMD, REGISTERMD);
 	void    Orn_16b(REGISTERMD, REGISTERMD, REGISTERMD);
 	void    Orr(REGISTER32, REGISTER32, REGISTER32);
 	void    Orr(REGISTER32, REGISTER32, uint8, uint8, uint8);
@@ -201,6 +209,7 @@ public:
 	void    Stp(REGISTER32, REGISTER32, REGISTER64, int32);
 	void    Stp_PreIdx(REGISTER64, REGISTER64, REGISTER64, int32);
 	void    Str(REGISTER32, REGISTER64, uint32);
+	void    Str(REGISTER32, REGISTER64, REGISTER64, bool);
 	void    Str(REGISTER64, REGISTER64, uint32);
 	void    Strb(REGISTER32, REGISTER64, uint32);
 	void    Strh(REGISTER32, REGISTER64, uint32);
@@ -213,8 +222,10 @@ public:
 	void    Sub_4s(REGISTERMD, REGISTERMD, REGISTERMD);
 	void    Sub_8h(REGISTERMD, REGISTERMD, REGISTERMD);
 	void    Sub_16b(REGISTERMD, REGISTERMD, REGISTERMD);
+	void    Tbl(REGISTERMD, REGISTERMD, REGISTERMD);
 	void    Tst(REGISTER32, REGISTER32);
 	void    Tst(REGISTER64, REGISTER64);
+	void    Uaddlv_16b(REGISTERMD, REGISTERMD);
 	void    Udiv(REGISTER32, REGISTER32, REGISTER32);
 	void    Umov_1s(REGISTER32, REGISTERMD, uint8);
 	void    Umull(REGISTER64, REGISTER32, REGISTER32);
@@ -247,8 +258,17 @@ private:
 		CONDITION condition;
 	};
 	
+	struct LITERAL128REF
+	{
+		size_t offset = 0;
+		uint32 rt = 0;
+		LITERAL128 value = LITERAL128(0, 0);
+	};
+	
 	typedef std::map<LABEL, size_t> LabelMapType;
 	typedef std::multimap<LABEL, LABELREF> LabelReferenceMapType;
+	
+	typedef std::vector<LITERAL128REF> Literal128ArrayType;
 	
 	void    CreateBranchLabelReference(LABEL, CONDITION);
 	void    CreateCompareBranchLabelReference(LABEL, CONDITION, REGISTER32);
@@ -264,6 +284,7 @@ private:
 	unsigned int             m_nextLabelId = 1;
 	LabelMapType             m_labels;
 	LabelReferenceMapType    m_labelReferences;
+	Literal128ArrayType      m_literal128Refs;
 	
 	Framework::CStream*    m_stream = nullptr;
 };

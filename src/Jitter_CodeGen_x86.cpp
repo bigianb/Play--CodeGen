@@ -1,6 +1,7 @@
 #include <functional>
 #include <array>
 #include <assert.h>
+#include <stdexcept>
 #include "Jitter_CodeGen_x86.h"
 
 //Check if CPUID is available
@@ -38,10 +39,10 @@ CX86Assembler::REGISTER CCodeGen_x86::g_baseRegister = CX86Assembler::rBP;
 
 CCodeGen_x86::CONSTMATCHER CCodeGen_x86::g_constMatchers[] = 
 { 
-	{ OP_LABEL,		MATCH_NIL,			MATCH_NIL,			MATCH_NIL,			&CCodeGen_x86::MarkLabel							},
+	{ OP_LABEL, MATCH_NIL, MATCH_NIL, MATCH_NIL, MATCH_NIL, &CCodeGen_x86::MarkLabel  },
 
-	{ OP_NOP,		MATCH_NIL,			MATCH_NIL,			MATCH_NIL,			&CCodeGen_x86::Emit_Nop								},
-	{ OP_BREAK,		MATCH_NIL,			MATCH_NIL,			MATCH_NIL,			&CCodeGen_x86::Emit_Break							},
+	{ OP_NOP,   MATCH_NIL, MATCH_NIL, MATCH_NIL, MATCH_NIL, &CCodeGen_x86::Emit_Nop   },
+	{ OP_BREAK, MATCH_NIL, MATCH_NIL, MATCH_NIL, MATCH_NIL, &CCodeGen_x86::Emit_Break },
 
 	ALU_CONST_MATCHERS(OP_ADD, ALUOP_ADD)
 	ALU_CONST_MATCHERS(OP_SUB, ALUOP_SUB)
@@ -49,106 +50,103 @@ CCodeGen_x86::CONSTMATCHER CCodeGen_x86::g_constMatchers[] =
 	ALU_CONST_MATCHERS(OP_OR,  ALUOP_OR)
 	ALU_CONST_MATCHERS(OP_XOR, ALUOP_XOR)
 
-	{ OP_CMP,		MATCH_REGISTER,		MATCH_REGISTER,		MATCH_REGISTER,		&CCodeGen_x86::Emit_Cmp_RegRegReg					},
-	{ OP_CMP,		MATCH_REGISTER,		MATCH_REGISTER,		MATCH_MEMORY,		&CCodeGen_x86::Emit_Cmp_RegRegMem					},
-	{ OP_CMP,		MATCH_REGISTER,		MATCH_REGISTER,		MATCH_CONSTANT,		&CCodeGen_x86::Emit_Cmp_RegRegCst					},
-	{ OP_CMP,		MATCH_REGISTER,		MATCH_MEMORY,		MATCH_MEMORY,		&CCodeGen_x86::Emit_Cmp_RegMemMem					},
-	{ OP_CMP,		MATCH_REGISTER,		MATCH_MEMORY,		MATCH_CONSTANT,		&CCodeGen_x86::Emit_Cmp_RegMemCst					},
-	{ OP_CMP,		MATCH_MEMORY,		MATCH_REGISTER,		MATCH_REGISTER,		&CCodeGen_x86::Emit_Cmp_MemRegReg					},
-	{ OP_CMP,		MATCH_MEMORY,		MATCH_REGISTER,		MATCH_MEMORY,		&CCodeGen_x86::Emit_Cmp_MemRegMem					},
-	{ OP_CMP,		MATCH_MEMORY,		MATCH_REGISTER,		MATCH_CONSTANT,		&CCodeGen_x86::Emit_Cmp_MemRegCst					},
-	{ OP_CMP,		MATCH_MEMORY,		MATCH_MEMORY,		MATCH_MEMORY,		&CCodeGen_x86::Emit_Cmp_MemMemMem					},
-	{ OP_CMP,		MATCH_MEMORY,		MATCH_MEMORY,		MATCH_CONSTANT,		&CCodeGen_x86::Emit_Cmp_MemMemCst					},
-	
-	{ OP_NOT,		MATCH_REGISTER,		MATCH_REGISTER,		MATCH_NIL,			&CCodeGen_x86::Emit_Not_RegReg						},
-	{ OP_NOT,		MATCH_REGISTER,		MATCH_MEMORY,		MATCH_NIL,			&CCodeGen_x86::Emit_Not_RegMem						},
-	{ OP_NOT,		MATCH_MEMORY,		MATCH_REGISTER,		MATCH_NIL,			&CCodeGen_x86::Emit_Not_MemReg						},
-	{ OP_NOT,		MATCH_MEMORY,		MATCH_MEMORY,		MATCH_NIL,			&CCodeGen_x86::Emit_Not_MemMem						},
+	{ OP_NOT, MATCH_REGISTER, MATCH_REGISTER, MATCH_NIL, MATCH_NIL, &CCodeGen_x86::Emit_Not_RegReg },
+	{ OP_NOT, MATCH_REGISTER, MATCH_MEMORY,   MATCH_NIL, MATCH_NIL, &CCodeGen_x86::Emit_Not_RegMem },
+	{ OP_NOT, MATCH_MEMORY,   MATCH_REGISTER, MATCH_NIL, MATCH_NIL, &CCodeGen_x86::Emit_Not_MemReg },
+	{ OP_NOT, MATCH_MEMORY,   MATCH_MEMORY,   MATCH_NIL, MATCH_NIL, &CCodeGen_x86::Emit_Not_MemMem },
 
-	{ OP_LZC,		MATCH_REGISTER,		MATCH_VARIABLE,		MATCH_NIL,			&CCodeGen_x86::Emit_Lzc_RegVar						},
-	{ OP_LZC,		MATCH_MEMORY,		MATCH_VARIABLE,		MATCH_NIL,			&CCodeGen_x86::Emit_Lzc_MemVar						},
+	{ OP_LZC, MATCH_REGISTER, MATCH_VARIABLE, MATCH_NIL, MATCH_NIL, &CCodeGen_x86::Emit_Lzc_RegVar },
+	{ OP_LZC, MATCH_MEMORY,   MATCH_VARIABLE, MATCH_NIL, MATCH_NIL, &CCodeGen_x86::Emit_Lzc_MemVar },
 
 	SHIFT_CONST_MATCHERS(OP_SRL, SHIFTOP_SRL)
 	SHIFT_CONST_MATCHERS(OP_SRA, SHIFTOP_SRA)
 	SHIFT_CONST_MATCHERS(OP_SLL, SHIFTOP_SLL)
 
-	{ OP_MOV,		MATCH_REGISTER,		MATCH_REGISTER,		MATCH_NIL,			&CCodeGen_x86::Emit_Mov_RegReg						},
-	{ OP_MOV,		MATCH_REGISTER,		MATCH_MEMORY,		MATCH_NIL,			&CCodeGen_x86::Emit_Mov_RegMem						},
-	{ OP_MOV,		MATCH_REGISTER,		MATCH_CONSTANT,		MATCH_NIL,			&CCodeGen_x86::Emit_Mov_RegCst						},
-	{ OP_MOV,		MATCH_MEMORY,		MATCH_REGISTER,		MATCH_NIL,			&CCodeGen_x86::Emit_Mov_MemReg						},
-	{ OP_MOV,		MATCH_MEMORY,		MATCH_MEMORY,		MATCH_NIL,			&CCodeGen_x86::Emit_Mov_MemMem						},
-	{ OP_MOV,		MATCH_MEMORY,		MATCH_CONSTANT,		MATCH_NIL,			&CCodeGen_x86::Emit_Mov_MemCst						},
+	{ OP_MOV, MATCH_REGISTER, MATCH_REGISTER, MATCH_NIL, MATCH_NIL, &CCodeGen_x86::Emit_Mov_RegReg },
+	{ OP_MOV, MATCH_REGISTER, MATCH_MEMORY,   MATCH_NIL, MATCH_NIL, &CCodeGen_x86::Emit_Mov_RegMem },
+	{ OP_MOV, MATCH_REGISTER, MATCH_CONSTANT, MATCH_NIL, MATCH_NIL, &CCodeGen_x86::Emit_Mov_RegCst },
+	{ OP_MOV, MATCH_MEMORY,   MATCH_REGISTER, MATCH_NIL, MATCH_NIL, &CCodeGen_x86::Emit_Mov_MemReg },
+	{ OP_MOV, MATCH_MEMORY,   MATCH_MEMORY,   MATCH_NIL, MATCH_NIL, &CCodeGen_x86::Emit_Mov_MemMem },
+	{ OP_MOV, MATCH_MEMORY,   MATCH_CONSTANT, MATCH_NIL, MATCH_NIL, &CCodeGen_x86::Emit_Mov_MemCst },
 	
-	{ OP_JMP,		MATCH_NIL,			MATCH_NIL,			MATCH_NIL,			&CCodeGen_x86::Emit_Jmp								},
+	{ OP_JMP, MATCH_NIL, MATCH_NIL, MATCH_NIL, MATCH_NIL, &CCodeGen_x86::Emit_Jmp },
 
-	{ OP_CONDJMP,	MATCH_NIL,			MATCH_REGISTER,		MATCH_REGISTER,		&CCodeGen_x86::Emit_CondJmp_RegReg					},
-	{ OP_CONDJMP,	MATCH_NIL,			MATCH_REGISTER,		MATCH_MEMORY,		&CCodeGen_x86::Emit_CondJmp_RegMem					},
-	{ OP_CONDJMP,	MATCH_NIL,			MATCH_REGISTER,		MATCH_CONSTANT,		&CCodeGen_x86::Emit_CondJmp_RegCst					},
-	{ OP_CONDJMP,	MATCH_NIL,			MATCH_MEMORY,		MATCH_MEMORY,		&CCodeGen_x86::Emit_CondJmp_MemMem					},
-	{ OP_CONDJMP,	MATCH_NIL,			MATCH_MEMORY,		MATCH_CONSTANT,		&CCodeGen_x86::Emit_CondJmp_MemCst					},
+	{ OP_CONDJMP, MATCH_NIL, MATCH_REGISTER, MATCH_REGISTER, MATCH_NIL, &CCodeGen_x86::Emit_CondJmp_RegReg },
+	{ OP_CONDJMP, MATCH_NIL, MATCH_REGISTER, MATCH_MEMORY,   MATCH_NIL, &CCodeGen_x86::Emit_CondJmp_RegMem },
+	{ OP_CONDJMP, MATCH_NIL, MATCH_REGISTER, MATCH_CONSTANT, MATCH_NIL, &CCodeGen_x86::Emit_CondJmp_RegCst },
+	{ OP_CONDJMP, MATCH_NIL, MATCH_MEMORY,   MATCH_MEMORY,   MATCH_NIL, &CCodeGen_x86::Emit_CondJmp_MemMem },
+	{ OP_CONDJMP, MATCH_NIL, MATCH_MEMORY,   MATCH_CONSTANT, MATCH_NIL, &CCodeGen_x86::Emit_CondJmp_MemCst },
 
-	{ OP_DIV,		MATCH_TEMPORARY64,	MATCH_REGISTER,		MATCH_REGISTER,		&CCodeGen_x86::Emit_DivTmp64RegReg<false>			},
-	{ OP_DIV,		MATCH_TEMPORARY64,	MATCH_REGISTER,		MATCH_MEMORY,		&CCodeGen_x86::Emit_DivTmp64RegMem<false>			},
-	{ OP_DIV,		MATCH_TEMPORARY64,	MATCH_REGISTER,		MATCH_CONSTANT,		&CCodeGen_x86::Emit_DivTmp64RegCst<false>			},
-	{ OP_DIV,		MATCH_TEMPORARY64,	MATCH_MEMORY,		MATCH_REGISTER,		&CCodeGen_x86::Emit_DivTmp64MemReg<false>			},
-	{ OP_DIV,		MATCH_TEMPORARY64,	MATCH_MEMORY,		MATCH_MEMORY,		&CCodeGen_x86::Emit_DivTmp64MemMem<false>			},
-	{ OP_DIV,		MATCH_TEMPORARY64,	MATCH_MEMORY,		MATCH_CONSTANT,		&CCodeGen_x86::Emit_DivTmp64MemCst<false>			},
-	{ OP_DIV,		MATCH_TEMPORARY64,	MATCH_CONSTANT,		MATCH_REGISTER,		&CCodeGen_x86::Emit_DivTmp64CstReg<false>			},
-	{ OP_DIV,		MATCH_TEMPORARY64,	MATCH_CONSTANT,		MATCH_MEMORY,		&CCodeGen_x86::Emit_DivTmp64CstMem<false>			},
+	{ OP_DIV, MATCH_TEMPORARY64, MATCH_REGISTER, MATCH_REGISTER, MATCH_NIL, &CCodeGen_x86::Emit_DivTmp64RegReg<false> },
+	{ OP_DIV, MATCH_TEMPORARY64, MATCH_REGISTER, MATCH_MEMORY,   MATCH_NIL, &CCodeGen_x86::Emit_DivTmp64RegMem<false> },
+	{ OP_DIV, MATCH_TEMPORARY64, MATCH_REGISTER, MATCH_CONSTANT, MATCH_NIL, &CCodeGen_x86::Emit_DivTmp64RegCst<false> },
+	{ OP_DIV, MATCH_TEMPORARY64, MATCH_MEMORY,   MATCH_REGISTER, MATCH_NIL, &CCodeGen_x86::Emit_DivTmp64MemReg<false> },
+	{ OP_DIV, MATCH_TEMPORARY64, MATCH_MEMORY,   MATCH_MEMORY,   MATCH_NIL, &CCodeGen_x86::Emit_DivTmp64MemMem<false> },
+	{ OP_DIV, MATCH_TEMPORARY64, MATCH_MEMORY,   MATCH_CONSTANT, MATCH_NIL, &CCodeGen_x86::Emit_DivTmp64MemCst<false> },
+	{ OP_DIV, MATCH_TEMPORARY64, MATCH_CONSTANT, MATCH_REGISTER, MATCH_NIL, &CCodeGen_x86::Emit_DivTmp64CstReg<false> },
+	{ OP_DIV, MATCH_TEMPORARY64, MATCH_CONSTANT, MATCH_MEMORY,   MATCH_NIL, &CCodeGen_x86::Emit_DivTmp64CstMem<false> },
 
-	{ OP_DIVS,		MATCH_TEMPORARY64,	MATCH_REGISTER,		MATCH_REGISTER,		&CCodeGen_x86::Emit_DivTmp64RegReg<true>			},
-	{ OP_DIVS,		MATCH_TEMPORARY64,	MATCH_REGISTER,		MATCH_MEMORY,		&CCodeGen_x86::Emit_DivTmp64RegMem<true>			},
-	{ OP_DIVS,		MATCH_TEMPORARY64,	MATCH_REGISTER,		MATCH_CONSTANT,		&CCodeGen_x86::Emit_DivTmp64RegCst<true>			},
-	{ OP_DIVS,		MATCH_TEMPORARY64,	MATCH_MEMORY,		MATCH_REGISTER,		&CCodeGen_x86::Emit_DivTmp64MemReg<true>			},
-	{ OP_DIVS,		MATCH_TEMPORARY64,	MATCH_MEMORY,		MATCH_MEMORY,		&CCodeGen_x86::Emit_DivTmp64MemMem<true>			},
-	{ OP_DIVS,		MATCH_TEMPORARY64,	MATCH_MEMORY,		MATCH_CONSTANT,		&CCodeGen_x86::Emit_DivTmp64MemCst<true>			},
-	{ OP_DIVS,		MATCH_TEMPORARY64,	MATCH_CONSTANT,		MATCH_REGISTER,		&CCodeGen_x86::Emit_DivTmp64CstReg<true>			},
-	{ OP_DIVS,		MATCH_TEMPORARY64,	MATCH_CONSTANT,		MATCH_MEMORY,		&CCodeGen_x86::Emit_DivTmp64CstMem<true>			},
+	{ OP_DIVS, MATCH_TEMPORARY64, MATCH_REGISTER, MATCH_REGISTER, MATCH_NIL, &CCodeGen_x86::Emit_DivTmp64RegReg<true> },
+	{ OP_DIVS, MATCH_TEMPORARY64, MATCH_REGISTER, MATCH_MEMORY,   MATCH_NIL, &CCodeGen_x86::Emit_DivTmp64RegMem<true> },
+	{ OP_DIVS, MATCH_TEMPORARY64, MATCH_REGISTER, MATCH_CONSTANT, MATCH_NIL, &CCodeGen_x86::Emit_DivTmp64RegCst<true> },
+	{ OP_DIVS, MATCH_TEMPORARY64, MATCH_MEMORY,   MATCH_REGISTER, MATCH_NIL, &CCodeGen_x86::Emit_DivTmp64MemReg<true> },
+	{ OP_DIVS, MATCH_TEMPORARY64, MATCH_MEMORY,   MATCH_MEMORY,   MATCH_NIL, &CCodeGen_x86::Emit_DivTmp64MemMem<true> },
+	{ OP_DIVS, MATCH_TEMPORARY64, MATCH_MEMORY,   MATCH_CONSTANT, MATCH_NIL, &CCodeGen_x86::Emit_DivTmp64MemCst<true> },
+	{ OP_DIVS, MATCH_TEMPORARY64, MATCH_CONSTANT, MATCH_REGISTER, MATCH_NIL, &CCodeGen_x86::Emit_DivTmp64CstReg<true> },
+	{ OP_DIVS, MATCH_TEMPORARY64, MATCH_CONSTANT, MATCH_MEMORY,   MATCH_NIL, &CCodeGen_x86::Emit_DivTmp64CstMem<true> },
 
-	{ OP_MUL,		MATCH_TEMPORARY64,	MATCH_REGISTER,		MATCH_REGISTER,		&CCodeGen_x86::Emit_MulTmp64RegReg<false>			},
-	{ OP_MUL,		MATCH_TEMPORARY64,	MATCH_REGISTER,		MATCH_MEMORY,		&CCodeGen_x86::Emit_MulTmp64RegMem<false>			},
-	{ OP_MUL,		MATCH_TEMPORARY64,	MATCH_REGISTER,		MATCH_CONSTANT,		&CCodeGen_x86::Emit_MulTmp64RegCst<false>			},
-	{ OP_MUL,		MATCH_TEMPORARY64,	MATCH_MEMORY,		MATCH_MEMORY,		&CCodeGen_x86::Emit_MulTmp64MemMem<false>			},
-	{ OP_MUL,		MATCH_TEMPORARY64,	MATCH_MEMORY,		MATCH_CONSTANT,		&CCodeGen_x86::Emit_MulTmp64MemCst<false>			},
+	{ OP_MUL, MATCH_TEMPORARY64, MATCH_REGISTER, MATCH_REGISTER, MATCH_NIL, &CCodeGen_x86::Emit_MulTmp64RegReg<false> },
+	{ OP_MUL, MATCH_TEMPORARY64, MATCH_REGISTER, MATCH_MEMORY,   MATCH_NIL, &CCodeGen_x86::Emit_MulTmp64RegMem<false> },
+	{ OP_MUL, MATCH_TEMPORARY64, MATCH_REGISTER, MATCH_CONSTANT, MATCH_NIL, &CCodeGen_x86::Emit_MulTmp64RegCst<false> },
+	{ OP_MUL, MATCH_TEMPORARY64, MATCH_MEMORY,   MATCH_MEMORY,   MATCH_NIL, &CCodeGen_x86::Emit_MulTmp64MemMem<false> },
+	{ OP_MUL, MATCH_TEMPORARY64, MATCH_MEMORY,   MATCH_CONSTANT, MATCH_NIL, &CCodeGen_x86::Emit_MulTmp64MemCst<false> },
 
-	{ OP_MULS,		MATCH_TEMPORARY64,	MATCH_REGISTER,		MATCH_REGISTER,		&CCodeGen_x86::Emit_MulTmp64RegReg<true>			},
-	{ OP_MULS,		MATCH_TEMPORARY64,	MATCH_REGISTER,		MATCH_MEMORY,		&CCodeGen_x86::Emit_MulTmp64RegMem<true>			},
-	{ OP_MULS,		MATCH_TEMPORARY64,	MATCH_REGISTER,		MATCH_CONSTANT,		&CCodeGen_x86::Emit_MulTmp64RegCst<true>			},
-	{ OP_MULS,		MATCH_TEMPORARY64,	MATCH_MEMORY,		MATCH_MEMORY,		&CCodeGen_x86::Emit_MulTmp64MemMem<true>			},
-	{ OP_MULS,		MATCH_TEMPORARY64,	MATCH_MEMORY,		MATCH_CONSTANT,		&CCodeGen_x86::Emit_MulTmp64MemCst<true>			},
+	{ OP_MULS, MATCH_TEMPORARY64, MATCH_REGISTER, MATCH_REGISTER, MATCH_NIL, &CCodeGen_x86::Emit_MulTmp64RegReg<true> },
+	{ OP_MULS, MATCH_TEMPORARY64, MATCH_REGISTER, MATCH_MEMORY,   MATCH_NIL, &CCodeGen_x86::Emit_MulTmp64RegMem<true> },
+	{ OP_MULS, MATCH_TEMPORARY64, MATCH_REGISTER, MATCH_CONSTANT, MATCH_NIL, &CCodeGen_x86::Emit_MulTmp64RegCst<true> },
+	{ OP_MULS, MATCH_TEMPORARY64, MATCH_MEMORY,   MATCH_MEMORY,   MATCH_NIL, &CCodeGen_x86::Emit_MulTmp64MemMem<true> },
+	{ OP_MULS, MATCH_TEMPORARY64, MATCH_MEMORY,   MATCH_CONSTANT, MATCH_NIL, &CCodeGen_x86::Emit_MulTmp64MemCst<true> },
 
-	{ OP_MERGETO64,	MATCH_MEMORY64,		MATCH_REGISTER,		MATCH_REGISTER,		&CCodeGen_x86::Emit_MergeTo64_Mem64RegReg			},
-	{ OP_MERGETO64,	MATCH_MEMORY64,		MATCH_REGISTER,		MATCH_MEMORY,		&CCodeGen_x86::Emit_MergeTo64_Mem64RegMem			},
-	{ OP_MERGETO64,	MATCH_MEMORY64,		MATCH_MEMORY,		MATCH_REGISTER,		&CCodeGen_x86::Emit_MergeTo64_Mem64MemReg			},
-	{ OP_MERGETO64,	MATCH_MEMORY64,		MATCH_MEMORY,		MATCH_MEMORY,		&CCodeGen_x86::Emit_MergeTo64_Mem64MemMem			},
-	{ OP_MERGETO64,	MATCH_MEMORY64,		MATCH_CONSTANT,		MATCH_REGISTER,		&CCodeGen_x86::Emit_MergeTo64_Mem64CstReg			},
-	{ OP_MERGETO64,	MATCH_MEMORY64,		MATCH_CONSTANT,		MATCH_MEMORY,		&CCodeGen_x86::Emit_MergeTo64_Mem64CstMem			},
+	{ OP_MERGETO64, MATCH_MEMORY64, MATCH_REGISTER, MATCH_REGISTER, MATCH_NIL, &CCodeGen_x86::Emit_MergeTo64_Mem64RegReg },
+	{ OP_MERGETO64, MATCH_MEMORY64, MATCH_REGISTER, MATCH_MEMORY,   MATCH_NIL, &CCodeGen_x86::Emit_MergeTo64_Mem64RegMem },
+	{ OP_MERGETO64, MATCH_MEMORY64, MATCH_MEMORY,   MATCH_REGISTER, MATCH_NIL, &CCodeGen_x86::Emit_MergeTo64_Mem64MemReg },
+	{ OP_MERGETO64, MATCH_MEMORY64, MATCH_MEMORY,   MATCH_MEMORY,   MATCH_NIL, &CCodeGen_x86::Emit_MergeTo64_Mem64MemMem },
+	{ OP_MERGETO64, MATCH_MEMORY64, MATCH_CONSTANT, MATCH_REGISTER, MATCH_NIL, &CCodeGen_x86::Emit_MergeTo64_Mem64CstReg },
+	{ OP_MERGETO64, MATCH_MEMORY64, MATCH_CONSTANT, MATCH_MEMORY,   MATCH_NIL, &CCodeGen_x86::Emit_MergeTo64_Mem64CstMem },
 
-	{ OP_EXTLOW64,	MATCH_REGISTER,		MATCH_TEMPORARY64,	MATCH_NIL,			&CCodeGen_x86::Emit_ExtLow64RegTmp64				},
-	{ OP_EXTLOW64,	MATCH_MEMORY,		MATCH_TEMPORARY64,	MATCH_NIL,			&CCodeGen_x86::Emit_ExtLow64MemTmp64				},
+	{ OP_EXTLOW64, MATCH_REGISTER, MATCH_TEMPORARY64, MATCH_NIL, MATCH_NIL, &CCodeGen_x86::Emit_ExtLow64RegTmp64 },
+	{ OP_EXTLOW64, MATCH_MEMORY,   MATCH_TEMPORARY64, MATCH_NIL, MATCH_NIL, &CCodeGen_x86::Emit_ExtLow64MemTmp64 },
 	
-	{ OP_EXTHIGH64,	MATCH_REGISTER,		MATCH_TEMPORARY64,	MATCH_NIL,			&CCodeGen_x86::Emit_ExtHigh64RegTmp64				},
-	{ OP_EXTHIGH64,	MATCH_MEMORY,		MATCH_TEMPORARY64,	MATCH_NIL,			&CCodeGen_x86::Emit_ExtHigh64MemTmp64				},
+	{ OP_EXTHIGH64, MATCH_REGISTER, MATCH_TEMPORARY64, MATCH_NIL, MATCH_NIL, &CCodeGen_x86::Emit_ExtHigh64RegTmp64 },
+	{ OP_EXTHIGH64, MATCH_MEMORY,   MATCH_TEMPORARY64, MATCH_NIL, MATCH_NIL, &CCodeGen_x86::Emit_ExtHigh64MemTmp64 },
 
-	{ OP_LOADFROMREF,	MATCH_VARIABLE,		MATCH_VAR_REF,		MATCH_NIL,		&CCodeGen_x86::Emit_LoadFromRef_VarVar				},
-	{ OP_LOADFROMREF,	MATCH_REGISTER128,	MATCH_VAR_REF,		MATCH_NIL,		&CCodeGen_x86::Emit_LoadFromRef_Md_RegVar			},
-	{ OP_LOADFROMREF,	MATCH_MEMORY128,	MATCH_VAR_REF,		MATCH_NIL,		&CCodeGen_x86::Emit_LoadFromRef_Md_MemVar			},
+	{ OP_LOADFROMREF, MATCH_VARIABLE,    MATCH_VAR_REF, MATCH_NIL, MATCH_NIL, &CCodeGen_x86::Emit_LoadFromRef_VarVar    },
+	{ OP_LOADFROMREF, MATCH_REGISTER128, MATCH_VAR_REF, MATCH_NIL, MATCH_NIL, &CCodeGen_x86::Emit_LoadFromRef_Md_RegVar },
+	{ OP_LOADFROMREF, MATCH_MEMORY128,   MATCH_VAR_REF, MATCH_NIL, MATCH_NIL, &CCodeGen_x86::Emit_LoadFromRef_Md_MemVar },
 
-	{ OP_LOAD8FROMREF,	MATCH_VARIABLE,		MATCH_VAR_REF,		MATCH_NIL,		&CCodeGen_x86::Emit_Load8FromRef_VarVar				},
+	{ OP_LOADFROMREFIDX, MATCH_VARIABLE, MATCH_VAR_REF, MATCH_VARIABLE, MATCH_NIL, &CCodeGen_x86::Emit_LoadFromRefIdx_VarVarVar },
+	{ OP_LOADFROMREFIDX, MATCH_VARIABLE, MATCH_VAR_REF, MATCH_CONSTANT, MATCH_NIL, &CCodeGen_x86::Emit_LoadFromRefIdx_VarVarCst },
 
-	{ OP_LOAD16FROMREF,	MATCH_VARIABLE,		MATCH_VAR_REF,		MATCH_NIL,		&CCodeGen_x86::Emit_Load16FromRef_VarVar			},
+	{ OP_LOAD8FROMREF, MATCH_VARIABLE, MATCH_VAR_REF, MATCH_NIL, MATCH_NIL, &CCodeGen_x86::Emit_Load8FromRef_VarVar },
 
-	{ OP_STOREATREF,	MATCH_NIL,			MATCH_VAR_REF,		MATCH_VARIABLE,		&CCodeGen_x86::Emit_StoreAtRef_VarVar			},
-	{ OP_STOREATREF,	MATCH_NIL,			MATCH_VAR_REF,		MATCH_CONSTANT,		&CCodeGen_x86::Emit_StoreAtRef_VarCst			},
-	{ OP_STOREATREF,	MATCH_NIL,			MATCH_VAR_REF,		MATCH_REGISTER128,	&CCodeGen_x86::Emit_StoreAtRef_Md_VarReg		},
-	{ OP_STOREATREF,	MATCH_NIL,			MATCH_VAR_REF,		MATCH_MEMORY128,	&CCodeGen_x86::Emit_StoreAtRef_Md_VarMem		},
+	{ OP_LOAD16FROMREF, MATCH_VARIABLE, MATCH_VAR_REF, MATCH_NIL, MATCH_NIL, &CCodeGen_x86::Emit_Load16FromRef_VarVar },
 
-	{ OP_STORE8ATREF,	MATCH_NIL,			MATCH_VAR_REF,		MATCH_CONSTANT,		&CCodeGen_x86::Emit_Store8AtRef_VarCst			},
+	{ OP_STOREATREF, MATCH_NIL, MATCH_VAR_REF, MATCH_VARIABLE,    MATCH_NIL, &CCodeGen_x86::Emit_StoreAtRef_VarVar    },
+	{ OP_STOREATREF, MATCH_NIL, MATCH_VAR_REF, MATCH_CONSTANT,    MATCH_NIL, &CCodeGen_x86::Emit_StoreAtRef_VarCst    },
+	{ OP_STOREATREF, MATCH_NIL, MATCH_VAR_REF, MATCH_REGISTER128, MATCH_NIL, &CCodeGen_x86::Emit_StoreAtRef_Md_VarReg },
+	{ OP_STOREATREF, MATCH_NIL, MATCH_VAR_REF, MATCH_MEMORY128,   MATCH_NIL, &CCodeGen_x86::Emit_StoreAtRef_Md_VarMem },
 
-	{ OP_STORE16ATREF,	MATCH_NIL,			MATCH_VAR_REF,		MATCH_VARIABLE,		&CCodeGen_x86::Emit_Store16AtRef_VarVar			},
-	{ OP_STORE16ATREF,	MATCH_NIL,			MATCH_VAR_REF,		MATCH_CONSTANT,		&CCodeGen_x86::Emit_Store16AtRef_VarCst			},
+	{ OP_STOREATREFIDX, MATCH_NIL, MATCH_VAR_REF, MATCH_VARIABLE, MATCH_VARIABLE, &CCodeGen_x86::Emit_StoreAtRefIdx_VarVarVar },
+	{ OP_STOREATREFIDX, MATCH_NIL, MATCH_VAR_REF, MATCH_VARIABLE, MATCH_CONSTANT, &CCodeGen_x86::Emit_StoreAtRefIdx_VarVarCst },
+	{ OP_STOREATREFIDX, MATCH_NIL, MATCH_VAR_REF, MATCH_CONSTANT, MATCH_VARIABLE, &CCodeGen_x86::Emit_StoreAtRefIdx_VarCstVar },
+	{ OP_STOREATREFIDX, MATCH_NIL, MATCH_VAR_REF, MATCH_CONSTANT, MATCH_CONSTANT, &CCodeGen_x86::Emit_StoreAtRefIdx_VarCstCst },
 
-	{ OP_MOV,		MATCH_NIL,			MATCH_NIL,			MATCH_NIL,			NULL												},
+	{ OP_STORE8ATREF, MATCH_NIL, MATCH_VAR_REF, MATCH_CONSTANT, MATCH_NIL, &CCodeGen_x86::Emit_Store8AtRef_VarCst },
+
+	{ OP_STORE16ATREF, MATCH_NIL, MATCH_VAR_REF, MATCH_VARIABLE, MATCH_NIL, &CCodeGen_x86::Emit_Store16AtRef_VarVar },
+	{ OP_STORE16ATREF, MATCH_NIL, MATCH_VAR_REF, MATCH_CONSTANT, MATCH_NIL, &CCodeGen_x86::Emit_Store16AtRef_VarCst },
+
+	{ OP_MOV, MATCH_NIL, MATCH_NIL, MATCH_NIL, MATCH_NIL, nullptr },
 };
 
 CCodeGen_x86::CCodeGen_x86()
@@ -157,26 +155,36 @@ CCodeGen_x86::CCodeGen_x86()
 
 	InsertMatchers(g_constMatchers);
 	InsertMatchers(g_fpuConstMatchers);
-	InsertMatchers(g_mdConstMatchers);
 
-	if(m_hasSsse3)
+	if(m_hasAvx)
 	{
-		InsertMatchers(g_mdFpFlagSsse3ConstMatchers);
+		InsertMatchers(g_fpuAvxConstMatchers);
+		InsertMatchers(g_mdAvxConstMatchers);
 	}
 	else
 	{
-		InsertMatchers(g_mdFpFlagConstMatchers);
-	}
+		InsertMatchers(g_fpuSseConstMatchers);
+		InsertMatchers(g_mdConstMatchers);
 
-	if(m_hasSse41)
-	{
-		InsertMatchers(g_mdMinMaxWSse41ConstMatchers);
-		InsertMatchers(g_mdMovMaskedSse41ConstMatchers);
-	}
-	else
-	{
-		InsertMatchers(g_mdMinMaxWConstMatchers);
-		InsertMatchers(g_mdMovMaskedConstMatchers);
+		if(m_hasSsse3)
+		{
+			InsertMatchers(g_mdFpFlagSsse3ConstMatchers);
+		}
+		else
+		{
+			InsertMatchers(g_mdFpFlagConstMatchers);
+		}
+
+		if(m_hasSse41)
+		{
+			InsertMatchers(g_mdMinMaxWSse41ConstMatchers);
+			InsertMatchers(g_mdMovMaskedSse41ConstMatchers);
+		}
+		else
+		{
+			InsertMatchers(g_mdMinMaxWConstMatchers);
+			InsertMatchers(g_mdMovMaskedConstMatchers);
+		}
 	}
 }
 
@@ -211,6 +219,7 @@ void CCodeGen_x86::GenerateCode(const StatementList& statements, unsigned int st
 				if(!SymbolMatches(matcher.dstType, statement.dst)) continue;
 				if(!SymbolMatches(matcher.src1Type, statement.src1)) continue;
 				if(!SymbolMatches(matcher.src2Type, statement.src2)) continue;
+				if(!SymbolMatches(matcher.src3Type, statement.src3)) continue;
 				matcher.emitter(statement);
 				found = true;
 				break;
@@ -245,11 +254,12 @@ void CCodeGen_x86::InsertMatchers(const CONSTMATCHER* constMatchers)
 	for(auto* constMatcher = constMatchers; constMatcher->emitter != nullptr; constMatcher++)
 	{
 		MATCHER matcher;
-		matcher.op			= constMatcher->op;
-		matcher.dstType		= constMatcher->dstType;
-		matcher.src1Type	= constMatcher->src1Type;
-		matcher.src2Type	= constMatcher->src2Type;
-		matcher.emitter		= std::bind(constMatcher->emitter, this, std::placeholders::_1);
+		matcher.op       = constMatcher->op;
+		matcher.dstType  = constMatcher->dstType;
+		matcher.src1Type = constMatcher->src1Type;
+		matcher.src2Type = constMatcher->src2Type;
+		matcher.src3Type = constMatcher->src3Type;
+		matcher.emitter  = std::bind(constMatcher->emitter, this, std::placeholders::_1);
 		m_matchers.insert(MatcherMapType::value_type(matcher.op, matcher));
 	}
 }
@@ -258,6 +268,7 @@ void CCodeGen_x86::SetGenerationFlags()
 {
 	static const uint32 CPUID_FLAG_SSSE3 = 0x000200;
 	static const uint32 CPUID_FLAG_SSE41 = 0x080000;
+	static const uint32 CPUID_FLAG_AVX = 0x10000000;
 
 #ifdef HAS_CPUID
 
@@ -273,6 +284,7 @@ void CCodeGen_x86::SetGenerationFlags()
 
 	m_hasSsse3 = (cpuInfo[2] & CPUID_FLAG_SSSE3) != 0;
 	m_hasSse41 = (cpuInfo[2] & CPUID_FLAG_SSE41) != 0;
+	m_hasAvx = (cpuInfo[2] & CPUID_FLAG_AVX) != 0;
 
 #endif //HAS_CPUID
 
@@ -840,6 +852,41 @@ void CCodeGen_x86::Emit_LoadFromRef_Md_MemVar(const STATEMENT& statement)
 	m_assembler.MovapsVo(MakeMemory128SymbolAddress(dst), valueReg);
 }
 
+void CCodeGen_x86::Emit_LoadFromRefIdx_VarVarVar(const STATEMENT& statement)
+{
+	auto dst = statement.dst->GetSymbol().get();
+	auto src1 = statement.src1->GetSymbol().get();
+	auto src2 = statement.src2->GetSymbol().get();
+
+	auto addressReg = PrepareRefSymbolRegisterUse(src1, CX86Assembler::rAX);
+	auto indexReg = PrepareSymbolRegisterUse(src2, CX86Assembler::rCX);
+	auto dstReg = PrepareSymbolRegisterDef(dst, CX86Assembler::rDX);
+
+	uint8 scale = static_cast<uint8>(statement.jmpCondition);
+	assert(scale == 1);
+
+	m_assembler.MovEd(dstReg, CX86Assembler::MakeBaseIndexScaleAddress(addressReg, indexReg, scale));
+
+	CommitSymbolRegister(dst, dstReg);
+}
+
+void CCodeGen_x86::Emit_LoadFromRefIdx_VarVarCst(const STATEMENT& statement)
+{
+	auto dst = statement.dst->GetSymbol().get();
+	auto src1 = statement.src1->GetSymbol().get();
+	auto src2 = statement.src2->GetSymbol().get();
+
+	auto addressReg = PrepareRefSymbolRegisterUse(src1, CX86Assembler::rAX);
+	auto dstReg = PrepareSymbolRegisterDef(dst, CX86Assembler::rDX);
+
+	uint8 scale = static_cast<uint8>(statement.jmpCondition);
+	assert(scale == 1);
+
+	m_assembler.MovEd(dstReg, CX86Assembler::MakeIndRegOffAddress(addressReg, src2->m_valueLow));
+
+	CommitSymbolRegister(dst, dstReg);
+}
+
 void CCodeGen_x86::Emit_Load8FromRef_VarVar(const STATEMENT& statement)
 {
 	auto dst = statement.dst->GetSymbol().get();
@@ -910,6 +957,69 @@ void CCodeGen_x86::Emit_StoreAtRef_Md_VarMem(const STATEMENT& statement)
 	m_assembler.MovapsVo(CX86Assembler::MakeIndRegAddress(addressReg), valueReg);
 }
 
+void CCodeGen_x86::Emit_StoreAtRefIdx_VarVarVar(const STATEMENT& statement)
+{
+	auto src1 = statement.src1->GetSymbol().get();
+	auto src2 = statement.src2->GetSymbol().get();
+	auto src3 = statement.src3->GetSymbol().get();
+	
+	uint8 scale = static_cast<uint8>(statement.jmpCondition);
+	
+	auto addressReg = PrepareRefSymbolRegisterUse(src1, CX86Assembler::rAX);
+	auto indexReg = PrepareSymbolRegisterUse(src2, CX86Assembler::rDX);
+	auto valueReg = PrepareSymbolRegisterUse(src3, CX86Assembler::rCX);
+
+	m_assembler.MovGd(CX86Assembler::MakeBaseIndexScaleAddress(addressReg, indexReg, scale), valueReg);
+}
+
+void CCodeGen_x86::Emit_StoreAtRefIdx_VarVarCst(const STATEMENT& statement)
+{
+	auto src1 = statement.src1->GetSymbol().get();
+	auto src2 = statement.src2->GetSymbol().get();
+	auto src3 = statement.src3->GetSymbol().get();
+	
+	assert(src3->m_type == SYM_CONSTANT);
+
+	uint8 scale = static_cast<uint8>(statement.jmpCondition);
+	
+	auto addressReg = PrepareRefSymbolRegisterUse(src1, CX86Assembler::rAX);
+	auto indexReg = PrepareSymbolRegisterUse(src2, CX86Assembler::rDX);
+
+	m_assembler.MovId(CX86Assembler::MakeBaseIndexScaleAddress(addressReg, indexReg, scale), src3->m_valueLow);
+}
+
+void CCodeGen_x86::Emit_StoreAtRefIdx_VarCstVar(const STATEMENT& statement)
+{
+	auto src1 = statement.src1->GetSymbol().get();
+	auto src2 = statement.src2->GetSymbol().get();
+	auto src3 = statement.src3->GetSymbol().get();
+	
+	uint8 scale = static_cast<uint8>(statement.jmpCondition);
+	assert(scale == 1);
+	
+	auto addressReg = PrepareRefSymbolRegisterUse(src1, CX86Assembler::rAX);
+	auto valueReg = PrepareSymbolRegisterUse(src3, CX86Assembler::rCX);
+
+	m_assembler.MovGd(CX86Assembler::MakeIndRegOffAddress(addressReg, src2->m_valueLow), valueReg);
+}
+
+void CCodeGen_x86::Emit_StoreAtRefIdx_VarCstCst(const STATEMENT& statement)
+{
+	auto src1 = statement.src1->GetSymbol().get();
+	auto src2 = statement.src2->GetSymbol().get();
+	auto src3 = statement.src3->GetSymbol().get();
+	
+	assert(src2->m_type == SYM_CONSTANT);
+	assert(src3->m_type == SYM_CONSTANT);
+
+	uint8 scale = static_cast<uint8>(statement.jmpCondition);
+	assert(scale == 1);
+
+	auto addressReg = PrepareRefSymbolRegisterUse(src1, CX86Assembler::rAX);
+
+	m_assembler.MovId(CX86Assembler::MakeIndRegOffAddress(addressReg, src2->m_valueLow), src3->m_valueLow);
+}
+
 void CCodeGen_x86::Emit_Store8AtRef_VarCst(const STATEMENT& statement)
 {
 	auto src1 = statement.src1->GetSymbol().get();
@@ -971,138 +1081,6 @@ void CCodeGen_x86::Cmp_GetFlag(const CX86Assembler::CAddress& dst, CONDITION fla
 		assert(0);
 		break;
 	}
-}
-
-void CCodeGen_x86::Emit_Cmp_RegRegReg(const STATEMENT& statement)
-{
-	auto dst = statement.dst->GetSymbol().get();
-	auto src1 = statement.src1->GetSymbol().get();
-	auto src2 = statement.src2->GetSymbol().get();
-
-	m_assembler.CmpEd(m_registers[src1->m_valueLow], CX86Assembler::MakeRegisterAddress(m_registers[src2->m_valueLow]));
-	Cmp_GetFlag(CX86Assembler::MakeByteRegisterAddress(CX86Assembler::rAX), statement.jmpCondition);
-	m_assembler.MovzxEb(m_registers[dst->m_valueLow], CX86Assembler::MakeByteRegisterAddress(CX86Assembler::rAX));
-}
-
-void CCodeGen_x86::Emit_Cmp_RegRegMem(const STATEMENT& statement)
-{
-	auto dst = statement.dst->GetSymbol().get();
-	auto src1 = statement.src1->GetSymbol().get();
-	auto src2 = statement.src2->GetSymbol().get();
-
-	m_assembler.CmpEd(m_registers[src1->m_valueLow], MakeMemorySymbolAddress(src2));
-	Cmp_GetFlag(CX86Assembler::MakeByteRegisterAddress(CX86Assembler::rAX), statement.jmpCondition);
-	m_assembler.MovzxEb(m_registers[dst->m_valueLow], CX86Assembler::MakeByteRegisterAddress(CX86Assembler::rAX));
-}
-
-void CCodeGen_x86::Emit_Cmp_RegRegCst(const STATEMENT& statement)
-{
-	auto dst = statement.dst->GetSymbol().get();
-	auto src1 = statement.src1->GetSymbol().get();
-	auto src2 = statement.src2->GetSymbol().get();
-
-	m_assembler.CmpId(CX86Assembler::MakeRegisterAddress(m_registers[src1->m_valueLow]), src2->m_valueLow);
-	Cmp_GetFlag(CX86Assembler::MakeByteRegisterAddress(CX86Assembler::rAX), statement.jmpCondition);
-	m_assembler.MovzxEb(m_registers[dst->m_valueLow], CX86Assembler::MakeByteRegisterAddress(CX86Assembler::rAX));
-}
-
-void CCodeGen_x86::Emit_Cmp_RegMemMem(const STATEMENT& statement)
-{
-	auto dst = statement.dst->GetSymbol().get();
-	auto src1 = statement.src1->GetSymbol().get();
-	auto src2 = statement.src2->GetSymbol().get();
-
-	assert(dst->m_type  == SYM_REGISTER);
-
-	m_assembler.MovEd(CX86Assembler::rAX, MakeMemorySymbolAddress(src1));
-	m_assembler.CmpEd(CX86Assembler::rAX, MakeMemorySymbolAddress(src2));
-	Cmp_GetFlag(CX86Assembler::MakeByteRegisterAddress(CX86Assembler::rAX), statement.jmpCondition);
-	m_assembler.MovzxEb(m_registers[dst->m_valueLow], CX86Assembler::MakeByteRegisterAddress(CX86Assembler::rAX));
-}
-
-void CCodeGen_x86::Emit_Cmp_RegMemCst(const STATEMENT& statement)
-{
-	auto dst = statement.dst->GetSymbol().get();
-	auto src1 = statement.src1->GetSymbol().get();
-	auto src2 = statement.src2->GetSymbol().get();
-
-	assert(dst->m_type  == SYM_REGISTER);
-	assert(src2->m_type == SYM_CONSTANT);
-
-	m_assembler.CmpId(MakeMemorySymbolAddress(src1), src2->m_valueLow);
-	Cmp_GetFlag(CX86Assembler::MakeByteRegisterAddress(CX86Assembler::rAX), statement.jmpCondition);
-	m_assembler.MovzxEb(m_registers[dst->m_valueLow], CX86Assembler::MakeByteRegisterAddress(CX86Assembler::rAX));
-}
-
-void CCodeGen_x86::Emit_Cmp_MemRegReg(const STATEMENT& statement)
-{
-	auto dst = statement.dst->GetSymbol().get();
-	auto src1 = statement.src1->GetSymbol().get();
-	auto src2 = statement.src2->GetSymbol().get();
-
-	assert(src1->m_type == SYM_REGISTER);
-	assert(src2->m_type == SYM_REGISTER);
-
-	m_assembler.CmpEd(m_registers[src1->m_valueLow], CX86Assembler::MakeRegisterAddress(m_registers[src2->m_valueLow]));
-	Cmp_GetFlag(CX86Assembler::MakeByteRegisterAddress(CX86Assembler::rAX), statement.jmpCondition);
-	m_assembler.MovzxEb(CX86Assembler::rAX, CX86Assembler::MakeByteRegisterAddress(CX86Assembler::rAX));
-	m_assembler.MovGd(MakeMemorySymbolAddress(dst), CX86Assembler::rAX);
-}
-
-void CCodeGen_x86::Emit_Cmp_MemRegMem(const STATEMENT& statement)
-{
-	auto dst = statement.dst->GetSymbol().get();
-	auto src1 = statement.src1->GetSymbol().get();
-	auto src2 = statement.src2->GetSymbol().get();
-
-	assert(src1->m_type == SYM_REGISTER);
-
-	m_assembler.CmpEd(m_registers[src1->m_valueLow], MakeMemorySymbolAddress(src2));
-	Cmp_GetFlag(CX86Assembler::MakeByteRegisterAddress(CX86Assembler::rAX), statement.jmpCondition);
-	m_assembler.MovzxEb(CX86Assembler::rAX, CX86Assembler::MakeByteRegisterAddress(CX86Assembler::rAX));
-	m_assembler.MovGd(MakeMemorySymbolAddress(dst), CX86Assembler::rAX);
-}
-
-void CCodeGen_x86::Emit_Cmp_MemRegCst(const STATEMENT& statement)
-{
-	auto dst = statement.dst->GetSymbol().get();
-	auto src1 = statement.src1->GetSymbol().get();
-	auto src2 = statement.src2->GetSymbol().get();
-
-	assert(src1->m_type == SYM_REGISTER);
-	assert(src2->m_type == SYM_CONSTANT);
-
-	m_assembler.CmpId(CX86Assembler::MakeRegisterAddress(m_registers[src1->m_valueLow]), src2->m_valueLow);
-	Cmp_GetFlag(CX86Assembler::MakeByteRegisterAddress(CX86Assembler::rAX), statement.jmpCondition);
-	m_assembler.MovzxEb(CX86Assembler::rAX, CX86Assembler::MakeByteRegisterAddress(CX86Assembler::rAX));
-	m_assembler.MovGd(MakeMemorySymbolAddress(dst), CX86Assembler::rAX);
-}
-
-void CCodeGen_x86::Emit_Cmp_MemMemMem(const STATEMENT& statement)
-{
-	auto dst = statement.dst->GetSymbol().get();
-	auto src1 = statement.src1->GetSymbol().get();
-	auto src2 = statement.src2->GetSymbol().get();
-
-	m_assembler.MovEd(CX86Assembler::rAX, MakeMemorySymbolAddress(src1));
-	m_assembler.CmpEd(CX86Assembler::rAX, MakeMemorySymbolAddress(src2));
-	Cmp_GetFlag(CX86Assembler::MakeByteRegisterAddress(CX86Assembler::rAX), statement.jmpCondition);
-	m_assembler.MovzxEb(CX86Assembler::rAX, CX86Assembler::MakeByteRegisterAddress(CX86Assembler::rAX));
-	m_assembler.MovGd(MakeMemorySymbolAddress(dst), CX86Assembler::rAX);
-}
-
-void CCodeGen_x86::Emit_Cmp_MemMemCst(const STATEMENT& statement)
-{
-	auto dst = statement.dst->GetSymbol().get();
-	auto src1 = statement.src1->GetSymbol().get();
-	auto src2 = statement.src2->GetSymbol().get();
-
-	assert(src2->m_type == SYM_CONSTANT);
-
-	m_assembler.CmpId(MakeMemorySymbolAddress(src1), src2->m_valueLow);
-	Cmp_GetFlag(CX86Assembler::MakeByteRegisterAddress(CX86Assembler::rAX), statement.jmpCondition);
-	m_assembler.MovzxEb(CX86Assembler::rAX, CX86Assembler::MakeByteRegisterAddress(CX86Assembler::rAX));
-	m_assembler.MovGd(MakeMemorySymbolAddress(dst), CX86Assembler::rAX);
 }
 
 void CCodeGen_x86::CondJmp_JumpTo(CX86Assembler::LABEL label, Jitter::CONDITION condition)
@@ -1306,6 +1284,58 @@ void CCodeGen_x86::CommitSymbolRegister(CSymbol* symbol, CX86Assembler::REGISTER
 	case SYM_TEMPORARY:
 	case SYM_RELATIVE:
 		m_assembler.MovGd(MakeMemorySymbolAddress(symbol), usedRegister);
+		break;
+	default:
+		throw std::runtime_error("Invalid symbol type.");
+		break;
+	}
+}
+
+CX86Assembler::XMMREGISTER CCodeGen_x86::PrepareSymbolRegisterDefMd(CSymbol* symbol, CX86Assembler::XMMREGISTER preferedRegister)
+{
+	switch(symbol->m_type)
+	{
+	case SYM_REGISTER128:
+		return m_mdRegisters[symbol->m_valueLow];
+		break;
+	case SYM_TEMPORARY128:
+	case SYM_RELATIVE128:
+		return preferedRegister;
+		break;
+	default:
+		throw std::runtime_error("Invalid symbol type.");
+		break;
+	}
+}
+
+CX86Assembler::XMMREGISTER CCodeGen_x86::PrepareSymbolRegisterUseMdAvx(CSymbol* symbol, CX86Assembler::XMMREGISTER preferedRegister)
+{
+	switch(symbol->m_type)
+	{
+	case SYM_REGISTER128:
+		return m_mdRegisters[symbol->m_valueLow];
+		break;
+	case SYM_TEMPORARY128:
+	case SYM_RELATIVE128:
+		m_assembler.VmovapsVo(preferedRegister, MakeMemory128SymbolAddress(symbol));
+		return preferedRegister;
+		break;
+	default:
+		throw std::runtime_error("Invalid symbol type.");
+		break;
+	}
+}
+
+void CCodeGen_x86::CommitSymbolRegisterMdAvx(CSymbol* symbol, CX86Assembler::XMMREGISTER usedRegister)
+{
+	switch(symbol->m_type)
+	{
+	case SYM_REGISTER128:
+		assert(usedRegister == m_mdRegisters[symbol->m_valueLow]);
+		break;
+	case SYM_TEMPORARY128:
+	case SYM_RELATIVE128:
+		m_assembler.VmovapsVo(MakeMemory128SymbolAddress(symbol), usedRegister);
 		break;
 	default:
 		throw std::runtime_error("Invalid symbol type.");

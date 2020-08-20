@@ -1,6 +1,7 @@
 #include <assert.h>
 #include <stdexcept>
 #include "AArch64Assembler.h"
+#include "LiteralPool.h"
 
 void CAArch64Assembler::SetStream(Framework::CStream* stream)
 {
@@ -106,6 +107,27 @@ void CAArch64Assembler::ResolveLabelReferences()
 	}
 	m_stream->Seek(0, Framework::STREAM_SEEK_END);
 	m_labelReferences.clear();
+}
+
+void CAArch64Assembler::ResolveLiteralReferences()
+{
+	if(m_literal128Refs.empty()) return;
+	
+	CLiteralPool literalPool(m_stream);
+	literalPool.AlignPool();
+
+	for(const auto& literalRef : m_literal128Refs)
+	{
+		auto literalPos = static_cast<uint32>(literalPool.GetLiteralPosition(literalRef.value));
+		m_stream->Seek(literalRef.offset, Framework::STREAM_SEEK_SET);
+		auto offset = literalPos - literalRef.offset;
+		assert((offset & 0x03) == 0);
+		assert(offset < 0x100000);
+		offset /= 4;
+		m_stream->Write32(0x9C000000 | static_cast<uint32>(offset << 5) | literalRef.rt);
+	}
+	m_literal128Refs.clear();
+	m_stream->Seek(0, Framework::STREAM_SEEK_END);
 }
 
 void CAArch64Assembler::Add(REGISTER32 rd, REGISTER32 rn, REGISTER32 rm)
@@ -480,6 +502,24 @@ void CAArch64Assembler::Fcmeqz_4s(REGISTERMD rd, REGISTERMD rn)
 	WriteWord(opcode);
 }
 
+void CAArch64Assembler::Fcmge_4s(REGISTERMD rd, REGISTERMD rn, REGISTERMD rm)
+{
+	uint32 opcode = 0x6E20E400;
+	opcode |= (rd <<  0);
+	opcode |= (rn <<  5);
+	opcode |= (rm << 16);
+	WriteWord(opcode);
+}
+
+void CAArch64Assembler::Fcmgt_4s(REGISTERMD rd, REGISTERMD rn, REGISTERMD rm)
+{
+	uint32 opcode = 0x6EA0E400;
+	opcode |= (rd <<  0);
+	opcode |= (rn <<  5);
+	opcode |= (rm << 16);
+	WriteWord(opcode);
+}
+
 void CAArch64Assembler::Fcmltz_4s(REGISTERMD rd, REGISTERMD rn)
 {
 	uint32 opcode = 0x4EA0E800;
@@ -681,6 +721,16 @@ void CAArch64Assembler::Ldr(REGISTER32 rt, REGISTER64 rn, uint32 offset)
 	WriteLoadStoreOpImm(0xB9400000, scaledOffset, rn, rt);
 }
 
+void CAArch64Assembler::Ldr(REGISTER32 rt, REGISTER64 rn, REGISTER64 rm, bool scaled)
+{
+	uint32 opcode = 0xB8606800;
+	opcode |= (rt << 0);
+	opcode |= (rn << 5);
+	opcode |= scaled ? (1 << 12) : 0;
+	opcode |= (rm << 16);
+	WriteWord(opcode);
+}
+
 void CAArch64Assembler::Ldr(REGISTER64 rt, REGISTER64 rn, uint32 offset)
 {
 	assert((offset & 0x07) == 0);
@@ -713,6 +763,16 @@ void CAArch64Assembler::Ldr_Pc(REGISTER64 rt, uint32 offset)
 	opcode |= (rt <<  0);
 	opcode |= scaledOffset << 5;
 	WriteWord(opcode);
+}
+
+void CAArch64Assembler::Ldr_Pc(REGISTERMD rt, const LITERAL128& literal)
+{
+	LITERAL128REF literalRef;
+	literalRef.offset = static_cast<size_t>(m_stream->Tell());
+	literalRef.value = literal;
+	literalRef.rt = rt;
+	m_literal128Refs.push_back(literalRef);
+	WriteWord(0);
 }
 
 void CAArch64Assembler::Ldr_1s(REGISTERMD rt, REGISTER64 rn, uint32 offset)
@@ -854,6 +914,14 @@ void CAArch64Assembler::Mvn(REGISTER32 rd, REGISTER32 rm)
 	opcode |= (rd  << 0);
 	opcode |= (wZR << 5);
 	opcode |= (rm  << 16);
+	WriteWord(opcode);
+}
+
+void CAArch64Assembler::Mvn_16b(REGISTERMD rd, REGISTERMD rn)
+{
+	uint32 opcode = 0x6E205800;
+	opcode |= (rd <<  0);
+	opcode |= (rn <<  5);
 	WriteWord(opcode);
 }
 
@@ -1094,6 +1162,16 @@ void CAArch64Assembler::Str(REGISTER32 rt, REGISTER64 rn, uint32 offset)
 	WriteLoadStoreOpImm(0xB9000000, scaledOffset, rn, rt);
 }
 
+void CAArch64Assembler::Str(REGISTER32 rt, REGISTER64 rn, REGISTER64 rm, bool scaled)
+{
+	uint32 opcode = 0xB8206800;
+	opcode |= (rt << 0);
+	opcode |= (rn << 5);
+	opcode |= scaled ? (1 << 12) : 0;
+	opcode |= (rm << 16);
+	WriteWord(opcode);
+}
+
 void CAArch64Assembler::Str(REGISTER64 rt, REGISTER64 rn, uint32 offset)
 {
 	assert((offset & 0x07) == 0);
@@ -1188,6 +1266,15 @@ void CAArch64Assembler::Sub_16b(REGISTERMD rd, REGISTERMD rn, REGISTERMD rm)
 	WriteWord(opcode);
 }
 
+void CAArch64Assembler::Tbl(REGISTERMD rd, REGISTERMD rn, REGISTERMD rm)
+{
+	uint32 opcode = 0x4E002000;
+	opcode |= (rd <<  0);
+	opcode |= (rn <<  5);
+	opcode |= (rm << 16);
+	WriteWord(opcode);
+}
+
 void CAArch64Assembler::Tst(REGISTER32 rn, REGISTER32 rm)
 {
 	uint32 opcode = 0x6A000000;
@@ -1203,6 +1290,14 @@ void CAArch64Assembler::Tst(REGISTER64 rn, REGISTER64 rm)
 	opcode |= (wZR << 0);
 	opcode |= (rn <<  5);
 	opcode |= (rm << 16);
+	WriteWord(opcode);
+}
+
+void CAArch64Assembler::Uaddlv_16b(REGISTERMD rd, REGISTERMD rn)
+{
+	uint32 opcode = 0x6E303800;
+	opcode |= (rd <<  0);
+	opcode |= (rn <<  5);
 	WriteWord(opcode);
 }
 

@@ -35,9 +35,11 @@ namespace Jitter
 		OP_ADDREF,
 		OP_ISREFNULL,
 		OP_LOADFROMREF,
+		OP_LOADFROMREFIDX,
 		OP_LOAD8FROMREF,
 		OP_LOAD16FROMREF,
 		OP_STOREATREF,
+		OP_STOREATREFIDX,
 		OP_STORE8ATREF,
 		OP_STORE16ATREF,
 
@@ -106,8 +108,7 @@ namespace Jitter
 
 		OP_MD_SRL256,
 
-		OP_MD_ISNEGATIVE,
-		OP_MD_ISZERO,
+		OP_MD_MAKESZ,
 
 		OP_MD_TOWORD_TRUNCATE,
 		OP_MD_TOSINGLE,
@@ -131,6 +132,9 @@ namespace Jitter
 		OP_MD_ABS_S,
 		OP_MD_MIN_S,
 		OP_MD_MAX_S,
+
+		OP_MD_CMPLT_S,
+		OP_MD_CMPGT_S,
 
 		OP_FP_ADD,
 		OP_FP_SUB,
@@ -191,6 +195,7 @@ namespace Jitter
 		OPERATION		op;
 		SymbolRefPtr	src1;
 		SymbolRefPtr	src2;
+		SymbolRefPtr	src3;
 		SymbolRefPtr	dst;
 		uint32			jmpBlock;
 		CONDITION		jmpCondition;
@@ -203,6 +208,7 @@ namespace Jitter
 			if(dst) visitor(dst, true);
 			if(src1) visitor(src1, false);
 			if(src2) visitor(src2, false);
+			if(src3) visitor(src3, false);
 		}
 
 		void VisitOperands(const ConstOperandVisitor& visitor) const
@@ -210,6 +216,7 @@ namespace Jitter
 			if(dst) visitor(dst, true);
 			if(src1) visitor(src1, false);
 			if(src2) visitor(src2, false);
+			if(src3) visitor(src3, false);
 		}
 
 		void VisitDestination(const ConstOperandVisitor& visitor) const
@@ -217,10 +224,18 @@ namespace Jitter
 			if(dst) visitor(dst, true);
 		}
 
+		void VisitSources(const OperandVisitor& visitor)
+		{
+			if(src1) visitor(src1, false);
+			if(src2) visitor(src2, false);
+			if(src3) visitor(src3, false);
+		}
+		
 		void VisitSources(const ConstOperandVisitor& visitor) const
 		{
 			if(src1) visitor(src1, false);
 			if(src2) visitor(src2, false);
+			if(src3) visitor(src3, false);
 		}
 	};
 

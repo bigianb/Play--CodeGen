@@ -2,6 +2,7 @@
 
 #include "Jitter_CodeGen.h"
 #include "X86Assembler.h"
+#include "Literal128.h"
 
 namespace Jitter
 {
@@ -85,283 +86,351 @@ namespace Jitter
 		struct FPUOP_BASE
 		{
 			typedef void (CX86Assembler::*OpEdType)(CX86Assembler::XMMREGISTER, const CX86Assembler::CAddress&);
+			typedef void (CX86Assembler::*OpEdAvxType)(CX86Assembler::XMMREGISTER, CX86Assembler::XMMREGISTER, const CX86Assembler::CAddress&);
 		};
 
 		struct FPUOP_ADD : public FPUOP_BASE
 		{
 			static OpEdType OpEd() { return &CX86Assembler::AddssEd; }
+			static OpEdAvxType OpEdAvx() { return &CX86Assembler::VaddssEd; }
 		};
 
 		struct FPUOP_SUB : public FPUOP_BASE
 		{
 			static OpEdType OpEd() { return &CX86Assembler::SubssEd; }
+			static OpEdAvxType OpEdAvx() { return &CX86Assembler::VsubssEd; }
 		};
 
 		struct FPUOP_MUL : public FPUOP_BASE
 		{
 			static OpEdType OpEd() { return &CX86Assembler::MulssEd; }
+			static OpEdAvxType OpEdAvx() { return &CX86Assembler::VmulssEd; }
 		};
 
 		struct FPUOP_DIV : public FPUOP_BASE
 		{
 			static OpEdType OpEd() { return &CX86Assembler::DivssEd; }
+			static OpEdAvxType OpEdAvx() { return &CX86Assembler::VdivssEd; }
 		};
 		
 		struct FPUOP_MAX : public FPUOP_BASE
 		{
 			static OpEdType OpEd() { return &CX86Assembler::MaxssEd; }
+			static OpEdAvxType OpEdAvx() { return &CX86Assembler::VmaxssEd; }
 		};
 
 		struct FPUOP_MIN : public FPUOP_BASE
 		{
 			static OpEdType OpEd() { return &CX86Assembler::MinssEd; }
+			static OpEdAvxType OpEdAvx() { return &CX86Assembler::VminssEd; }
 		};
 
 		struct FPUOP_SQRT : public FPUOP_BASE
 		{
 			static OpEdType OpEd() { return &CX86Assembler::SqrtssEd; }
+			static OpEdAvxType OpEdAvx() { return &CX86Assembler::VsqrtssEd; }
 		};
 
 		//MDOP -----------------------------------------------------------
 		struct MDOP_BASE
 		{
 			typedef void (CX86Assembler::*OpVoType)(CX86Assembler::XMMREGISTER, const CX86Assembler::CAddress&);
+			typedef void (CX86Assembler::*OpVoAvxType)(CX86Assembler::XMMREGISTER, CX86Assembler::XMMREGISTER, const CX86Assembler::CAddress&);
 		};
 
 		struct MDOP_ADDB : public MDOP_BASE
 		{
 			static OpVoType OpVo() { return &CX86Assembler::PaddbVo; }
+			static OpVoAvxType OpVoAvx() { return &CX86Assembler::VpaddbVo; }
 		};
 
 		struct MDOP_ADDH : public MDOP_BASE
 		{
 			static OpVoType OpVo() { return &CX86Assembler::PaddwVo; }
+			static OpVoAvxType OpVoAvx() { return &CX86Assembler::VpaddwVo; }
 		};
 
 		struct MDOP_ADDW : public MDOP_BASE
 		{
 			static OpVoType OpVo() { return &CX86Assembler::PadddVo; }
+			static OpVoAvxType OpVoAvx() { return &CX86Assembler::VpadddVo; }
 		};
 
 		struct MDOP_ADDSSB : public MDOP_BASE
 		{
 			static OpVoType OpVo() { return &CX86Assembler::PaddsbVo; }
+			static OpVoAvxType OpVoAvx() { return &CX86Assembler::VpaddsbVo; }
 		};
 
 		struct MDOP_ADDSSH : public MDOP_BASE
 		{
 			static OpVoType OpVo() { return &CX86Assembler::PaddswVo; }
+			static OpVoAvxType OpVoAvx() { return &CX86Assembler::VpaddswVo; }
 		};
 
 		struct MDOP_ADDUSB : public MDOP_BASE
 		{
 			static OpVoType OpVo() { return &CX86Assembler::PaddusbVo; }
+			static OpVoAvxType OpVoAvx() { return &CX86Assembler::VpaddusbVo; }
 		};
 
 		struct MDOP_ADDUSH : public MDOP_BASE
 		{
 			static OpVoType OpVo() { return &CX86Assembler::PadduswVo; }
+			static OpVoAvxType OpVoAvx() { return &CX86Assembler::VpadduswVo; }
 		};
 
 		struct MDOP_SUBB : public MDOP_BASE
 		{
 			static OpVoType OpVo() { return &CX86Assembler::PsubbVo; }
+			static OpVoAvxType OpVoAvx() { return &CX86Assembler::VpsubbVo; }
 		};
 
 		struct MDOP_SUBH : public MDOP_BASE
 		{
 			static OpVoType OpVo() { return &CX86Assembler::PsubwVo; }
+			static OpVoAvxType OpVoAvx() { return &CX86Assembler::VpsubwVo; }
 		};
 
 		struct MDOP_SUBW : public MDOP_BASE
 		{
 			static OpVoType OpVo() { return &CX86Assembler::PsubdVo; }
+			static OpVoAvxType OpVoAvx() { return &CX86Assembler::VpsubdVo; }
 		};
 
 		struct MDOP_SUBSSH : public MDOP_BASE
 		{
 			static OpVoType OpVo() { return &CX86Assembler::PsubswVo; }
+			static OpVoAvxType OpVoAvx() { return &CX86Assembler::VpsubswVo; }
 		};
 
 		struct MDOP_SUBUSB : public MDOP_BASE
 		{
 			static OpVoType OpVo() { return &CX86Assembler::PsubusbVo; }
+			static OpVoAvxType OpVoAvx() { return &CX86Assembler::VpsubusbVo; }
 		};
 
 		struct MDOP_SUBUSH : public MDOP_BASE
 		{
 			static OpVoType OpVo() { return &CX86Assembler::PsubuswVo; }
+			static OpVoAvxType OpVoAvx() { return &CX86Assembler::VpsubuswVo; }
 		};
 
 		struct MDOP_CMPEQB : public MDOP_BASE
 		{
 			static OpVoType OpVo() { return &CX86Assembler::PcmpeqbVo; }
+			static OpVoAvxType OpVoAvx() { return &CX86Assembler::VpcmpeqbVo; }
 		};
 
 		struct MDOP_CMPEQH : public MDOP_BASE
 		{
 			static OpVoType OpVo() { return &CX86Assembler::PcmpeqwVo; }
+			static OpVoAvxType OpVoAvx() { return &CX86Assembler::VpcmpeqwVo; }
 		};
 
 		struct MDOP_CMPEQW : public MDOP_BASE
 		{
 			static OpVoType OpVo() { return &CX86Assembler::PcmpeqdVo; }
+			static OpVoAvxType OpVoAvx() { return &CX86Assembler::VpcmpeqdVo; }
 		};
 
 		struct MDOP_CMPGTB : public MDOP_BASE
 		{
 			static OpVoType OpVo() { return &CX86Assembler::PcmpgtbVo; }
+			static OpVoAvxType OpVoAvx() { return &CX86Assembler::VpcmpgtbVo; }
 		};
 
 		struct MDOP_CMPGTH : public MDOP_BASE
 		{
 			static OpVoType OpVo() { return &CX86Assembler::PcmpgtwVo; }
+			static OpVoAvxType OpVoAvx() { return &CX86Assembler::VpcmpgtwVo; }
 		};
 
 		struct MDOP_CMPGTW : public MDOP_BASE
 		{
 			static OpVoType OpVo() { return &CX86Assembler::PcmpgtdVo; }
+			static OpVoAvxType OpVoAvx() { return &CX86Assembler::VpcmpgtdVo; }
 		};
 
 		struct MDOP_MINH : public MDOP_BASE
 		{
 			static OpVoType OpVo() { return &CX86Assembler::PminswVo; }
+			static OpVoAvxType OpVoAvx() { return &CX86Assembler::VpminswVo; }
 		};
 
 		struct MDOP_MINW : public MDOP_BASE
 		{
 			static OpVoType OpVo() { return &CX86Assembler::PminsdVo; }
+			static OpVoAvxType OpVoAvx() { return &CX86Assembler::VpminsdVo; }
 		};
 
 		struct MDOP_MAXH : public MDOP_BASE
 		{
 			static OpVoType OpVo() { return &CX86Assembler::PmaxswVo; }
+			static OpVoAvxType OpVoAvx() { return &CX86Assembler::VpmaxswVo; }
 		};
 
 		struct MDOP_MAXW : public MDOP_BASE
 		{
 			static OpVoType OpVo() { return &CX86Assembler::PmaxsdVo; }
+			static OpVoAvxType OpVoAvx() { return &CX86Assembler::VpmaxsdVo; }
 		};
 
 		struct MDOP_AND : public MDOP_BASE
 		{
 			static OpVoType OpVo() { return &CX86Assembler::PandVo; }
+			static OpVoAvxType OpVoAvx() { return &CX86Assembler::VpandVo; }
 		};
 
 		struct MDOP_OR : public MDOP_BASE
 		{
 			static OpVoType OpVo() { return &CX86Assembler::PorVo; }
+			static OpVoAvxType OpVoAvx() { return &CX86Assembler::VporVo; }
 		};
 
 		struct MDOP_XOR : public MDOP_BASE
 		{
 			static OpVoType OpVo() { return &CX86Assembler::PxorVo; }
+			static OpVoAvxType OpVoAvx() { return &CX86Assembler::VpxorVo; }
 		};
 
 		struct MDOP_UNPACK_LOWER_BH : public MDOP_BASE
 		{
 			static OpVoType OpVo() { return &CX86Assembler::PunpcklbwVo; }
+			static OpVoAvxType OpVoAvx() { return &CX86Assembler::VpunpcklbwVo; }
 		};
 
 		struct MDOP_UNPACK_LOWER_HW : public MDOP_BASE
 		{
 			static OpVoType OpVo() { return &CX86Assembler::PunpcklwdVo; }
+			static OpVoAvxType OpVoAvx() { return &CX86Assembler::VpunpcklwdVo; }
 		};
 
 		struct MDOP_UNPACK_LOWER_WD : public MDOP_BASE
 		{
 			static OpVoType OpVo() { return &CX86Assembler::PunpckldqVo; }
+			static OpVoAvxType OpVoAvx() { return &CX86Assembler::VpunpckldqVo; }
 		};
 
 		struct MDOP_UNPACK_UPPER_BH : public MDOP_BASE
 		{
 			static OpVoType OpVo() { return &CX86Assembler::PunpckhbwVo; }
+			static OpVoAvxType OpVoAvx() { return &CX86Assembler::VpunpckhbwVo; }
 		};
 
 		struct MDOP_UNPACK_UPPER_HW : public MDOP_BASE
 		{
 			static OpVoType OpVo() { return &CX86Assembler::PunpckhwdVo; }
+			static OpVoAvxType OpVoAvx() { return &CX86Assembler::VpunpckhwdVo; }
 		};
 
 		struct MDOP_UNPACK_UPPER_WD : public MDOP_BASE
 		{
 			static OpVoType OpVo() { return &CX86Assembler::PunpckhdqVo; }
+			static OpVoAvxType OpVoAvx() { return &CX86Assembler::VpunpckhdqVo; }
 		};
 
 		struct MDOP_ADDS : public MDOP_BASE
 		{
 			static OpVoType OpVo() { return &CX86Assembler::AddpsVo; }
+			static OpVoAvxType OpVoAvx() { return &CX86Assembler::VaddpsVo; }
 		};
 
 		struct MDOP_SUBS : public MDOP_BASE
 		{
 			static OpVoType OpVo() { return &CX86Assembler::SubpsVo; }
+			static OpVoAvxType OpVoAvx() { return &CX86Assembler::VsubpsVo; }
 		};
 
 		struct MDOP_MULS : public MDOP_BASE
 		{
 			static OpVoType OpVo() { return &CX86Assembler::MulpsVo; }
+			static OpVoAvxType OpVoAvx() { return &CX86Assembler::VmulpsVo; }
 		};
 
 		struct MDOP_DIVS : public MDOP_BASE
 		{
 			static OpVoType OpVo() { return &CX86Assembler::DivpsVo; }
+			static OpVoAvxType OpVoAvx() { return &CX86Assembler::VdivpsVo; }
+		};
+
+		struct MDOP_CMPLTS : public MDOP_BASE
+		{
+			static OpVoType OpVo() { return &CX86Assembler::CmpltpsVo; }
+			static OpVoAvxType OpVoAvx() { return &CX86Assembler::VcmpltpsVo; }
+		};
+
+		struct MDOP_CMPGTS : public MDOP_BASE
+		{
+			static OpVoType OpVo() { return &CX86Assembler::CmpgtpsVo; }
+			static OpVoAvxType OpVoAvx() { return &CX86Assembler::VcmpgtpsVo; }
 		};
 
 		struct MDOP_MINS : public MDOP_BASE
 		{
 			static OpVoType OpVo() { return &CX86Assembler::MinpsVo; }
+			static OpVoAvxType OpVoAvx() { return &CX86Assembler::VminpsVo; }
 		};
 
 		struct MDOP_MAXS : public MDOP_BASE
 		{
 			static OpVoType OpVo() { return &CX86Assembler::MaxpsVo; }
+			static OpVoAvxType OpVoAvx() { return &CX86Assembler::VmaxpsVo; }
 		};
 
 		struct MDOP_TOWORD_TRUNCATE : public MDOP_BASE
 		{
 			static OpVoType OpVo() { return &CX86Assembler::Cvttps2dqVo; }
+			static OpVoType OpVoAvx() { return &CX86Assembler::Vcvttps2dqVo; }
 		};
 
 		struct MDOP_TOSINGLE : public MDOP_BASE
 		{
 			static OpVoType OpVo() { return &CX86Assembler::Cvtdq2psVo; }
+			static OpVoType OpVoAvx() { return &CX86Assembler::Vcvtdq2psVo; }
 		};
 
 		//MDOP SHIFT -----------------------------------------------------
 		struct MDOP_SHIFT_BASE
 		{
 			typedef void (CX86Assembler::*OpVoType)(CX86Assembler::XMMREGISTER, uint8);
+			typedef void (CX86Assembler::*OpVoAvxType)(CX86Assembler::XMMREGISTER, CX86Assembler::XMMREGISTER, uint8);
 		};
 		
 		struct MDOP_SRLH : public MDOP_SHIFT_BASE
 		{
 			static OpVoType OpVo() { return &CX86Assembler::PsrlwVo; }
+			static OpVoAvxType OpVoAvx() { return &CX86Assembler::VpsrlwVo; }
 		};
 
 		struct MDOP_SRAH : public MDOP_SHIFT_BASE
 		{
 			static OpVoType OpVo() { return &CX86Assembler::PsrawVo; }
+			static OpVoAvxType OpVoAvx() { return &CX86Assembler::VpsrawVo; }
 		};
 
 		struct MDOP_SLLH : public MDOP_SHIFT_BASE
 		{
 			static OpVoType OpVo() { return &CX86Assembler::PsllwVo; }
+			static OpVoAvxType OpVoAvx() { return &CX86Assembler::VpsllwVo; }
 		};
 
 		struct MDOP_SRLW : public MDOP_SHIFT_BASE
 		{
 			static OpVoType OpVo() { return &CX86Assembler::PsrldVo; }
+			static OpVoAvxType OpVoAvx() { return &CX86Assembler::VpsrldVo; }
 		};
 
 		struct MDOP_SRAW : public MDOP_SHIFT_BASE
 		{
 			static OpVoType OpVo() { return &CX86Assembler::PsradVo; }
+			static OpVoAvxType OpVoAvx() { return &CX86Assembler::VpsradVo; }
 		};
 
 		struct MDOP_SLLW : public MDOP_SHIFT_BASE
 		{
 			static OpVoType OpVo() { return &CX86Assembler::PslldVo; }
+			static OpVoAvxType OpVoAvx() { return &CX86Assembler::VpslldVo; }
 		};
 
 		//MDOP SINGLEOP -------------------------------------------------
@@ -386,28 +455,10 @@ namespace Jitter
 			typedef void (CCodeGen_x86::*OpEdType)(CX86Assembler::REGISTER, const CX86Assembler::CAddress&);
 		};
 
-		struct MDOP_ISNEGATIVE : public MDOP_FLAG_BASE
-		{
-			static OpEdType OpEd() { return &CCodeGen_x86::Emit_Md_IsNegative; }
-		};
-
-		struct MDOP_ISZERO : public MDOP_FLAG_BASE
-		{
-			static OpEdType OpEd() { return &CCodeGen_x86::Emit_Md_IsZero; }
-		};
-
-		struct MDOP_ISNEGATIVE_SSSE3 : public MDOP_FLAG_BASE
-		{
-			static OpEdType OpEd() { return &CCodeGen_x86::Emit_Md_IsNegative_Ssse3; }
-		};
-
-		struct MDOP_ISZERO_SSSE3 : public MDOP_FLAG_BASE
-		{
-			static OpEdType OpEd() { return &CCodeGen_x86::Emit_Md_IsZero_Ssse3; }
-		};
-
 		virtual void				Emit_Prolog(const StatementList&, unsigned int) = 0;
 		virtual void				Emit_Epilog() = 0;
+
+		virtual CX86Assembler::CAddress MakeConstant128Address(const LITERAL128&) = 0;
 
 		CX86Assembler::LABEL		GetLabel(uint32);
 
@@ -504,16 +555,6 @@ namespace Jitter
 
 		//CMP
 		void						Cmp_GetFlag(const CX86Assembler::CAddress&, CONDITION);
-		void						Emit_Cmp_RegRegReg(const STATEMENT&);
-		void						Emit_Cmp_RegRegMem(const STATEMENT&);
-		void						Emit_Cmp_RegRegCst(const STATEMENT&);
-		void						Emit_Cmp_RegMemMem(const STATEMENT&);
-		void						Emit_Cmp_RegMemCst(const STATEMENT&);
-		void						Emit_Cmp_MemRegReg(const STATEMENT&);
-		void						Emit_Cmp_MemRegMem(const STATEMENT&);
-		void						Emit_Cmp_MemRegCst(const STATEMENT&);
-		void						Emit_Cmp_MemMemMem(const STATEMENT&);
-		void						Emit_Cmp_MemMemCst(const STATEMENT&);
 
 		//MUL/MULS
 		template<bool> void			Emit_MulTmp64RegReg(const STATEMENT&);
@@ -572,6 +613,10 @@ namespace Jitter
 		void						Emit_LoadFromRef_Md_RegVar(const STATEMENT&);
 		void						Emit_LoadFromRef_Md_MemVar(const STATEMENT&);
 
+		//LOADFROMREFIDX
+		void						Emit_LoadFromRefIdx_VarVarVar(const STATEMENT&);
+		void						Emit_LoadFromRefIdx_VarVarCst(const STATEMENT&);
+
 		//LOAD8FROMREF
 		void						Emit_Load8FromRef_VarVar(const STATEMENT&);
 
@@ -584,6 +629,12 @@ namespace Jitter
 		void						Emit_StoreAtRef_Md_VarReg(const STATEMENT&);
 		void						Emit_StoreAtRef_Md_VarMem(const STATEMENT&);
 
+		//STOREATREFIDX
+		void						Emit_StoreAtRefIdx_VarVarVar(const STATEMENT&);
+		void						Emit_StoreAtRefIdx_VarVarCst(const STATEMENT&);
+		void						Emit_StoreAtRefIdx_VarCstVar(const STATEMENT&);
+		void						Emit_StoreAtRefIdx_VarCstCst(const STATEMENT&);
+		
 		//STORE8ATREF
 		void						Emit_Store8AtRef_VarCst(const STATEMENT&);
 
@@ -597,11 +648,9 @@ namespace Jitter
 
 		//FPCMP
 		CX86Assembler::SSE_CMP_TYPE	GetSseConditionCode(Jitter::CONDITION);
-		void						Emit_Fp_Cmp_MemMem(CX86Assembler::REGISTER, const STATEMENT&);
-		void						Emit_Fp_Cmp_MemCst(CX86Assembler::REGISTER, const STATEMENT&);
 
-		void						Emit_Fp_Cmp_SymMemMem(const STATEMENT&);
-		void						Emit_Fp_Cmp_SymMemCst(const STATEMENT&);
+		void						Emit_Fp_Cmp_VarMemMem(const STATEMENT&);
+		void						Emit_Fp_Cmp_VarMemCst(const STATEMENT&);
 
 		//FPABS
 		void						Emit_Fp_Abs_MemMem(const STATEMENT&);
@@ -651,8 +700,6 @@ namespace Jitter
 		void						Emit_Md_Mov_MemMem(const STATEMENT&);
 		void						Emit_Md_MovMasked_VarVarVar(const STATEMENT&);
 		void						Emit_Md_MovMasked_Sse41_VarVarVar(const STATEMENT&);
-		template <typename> void	Emit_Md_GetFlag_RegVar(const STATEMENT&);
-		template <typename> void	Emit_Md_GetFlag_MemVar(const STATEMENT&);
 		void						Emit_Md_Expand_RegReg(const STATEMENT&);
 		void						Emit_Md_Expand_RegMem(const STATEMENT&);
 		void						Emit_Md_Expand_RegCst(const STATEMENT&);
@@ -668,10 +715,50 @@ namespace Jitter
 
 		void						Emit_Md_Abs(CX86Assembler::XMMREGISTER);
 		void						Emit_Md_Not(CX86Assembler::XMMREGISTER);
-		void						Emit_Md_IsNegative(CX86Assembler::REGISTER, const CX86Assembler::CAddress&);
-		void						Emit_Md_IsZero(CX86Assembler::REGISTER, const CX86Assembler::CAddress&);
-		void						Emit_Md_IsNegative_Ssse3(CX86Assembler::REGISTER, const CX86Assembler::CAddress&);
-		void						Emit_Md_IsZero_Ssse3(CX86Assembler::REGISTER, const CX86Assembler::CAddress&);
+		void						Emit_Md_MakeSz(CX86Assembler::XMMREGISTER, const CX86Assembler::CAddress&);
+		void						Emit_Md_MakeSz_VarVar(const STATEMENT&);
+		void						Emit_Md_MakeSz_Ssse3_VarVar(const STATEMENT&);
+
+		//FPUOP AVX
+		template <typename> void	Emit_Fpu_Avx_MemMem(const STATEMENT&);
+		template <typename> void	Emit_Fpu_Avx_MemMemMem(const STATEMENT&);
+
+		void						Emit_Fp_Avx_Cmp_VarMemMem(const STATEMENT&);
+		void						Emit_Fp_Avx_Rsqrt_MemMem(const STATEMENT&);
+		void						Emit_Fp_Avx_Rcpl_MemMem(const STATEMENT&);
+		void						Emit_Fp_Avx_Mov_RelSRelI32(const STATEMENT&);
+		void						Emit_Fp_Avx_ToIntTrunc_RelRel(const STATEMENT&);
+
+		//MDOP AVX
+		template <typename> void	Emit_Md_Avx_VarVar(const STATEMENT&);
+		template <typename> void	Emit_Md_Avx_VarVarVar(const STATEMENT&);
+		template <typename> void	Emit_Md_Avx_VarVarVarRev(const STATEMENT&);
+		template <typename, uint8> void
+									Emit_Md_Avx_Shift_VarVarCst(const STATEMENT&);
+		void						Emit_Md_Avx_Mov_RegVar(const STATEMENT&);
+		void						Emit_Md_Avx_Mov_MemReg(const STATEMENT&);
+		void						Emit_Md_Avx_Mov_MemMem(const STATEMENT&);
+		void						Emit_Md_Avx_MovMasked_VarVarVar(const STATEMENT&);
+
+		void						Emit_Md_Avx_Not_VarVar(const STATEMENT&);
+		void						Emit_Md_Avx_Abs_VarVar(const STATEMENT&);
+		void						Emit_Md_Avx_AddSSW_VarVarVar(const STATEMENT&);
+		void						Emit_Md_Avx_AddUSW_VarVarVar(const STATEMENT&);
+		void						Emit_Md_Avx_SubSSW_VarVarVar(const STATEMENT&);
+		void						Emit_Md_Avx_SubUSW_VarVarVar(const STATEMENT&);
+
+		void						Emit_Md_Avx_PackHB_VarVarVar(const STATEMENT&);
+		void						Emit_Md_Avx_PackWH_VarVarVar(const STATEMENT&);
+
+		void						Emit_Md_Avx_MakeSz_VarVar(const STATEMENT&);
+
+		void						Emit_Md_Avx_Expand_VarVar(const STATEMENT&);
+		void						Emit_Md_Avx_Expand_VarCst(const STATEMENT&);
+
+		void						Emit_Avx_MergeTo256_MemVarVar(const STATEMENT&);
+
+		void						Emit_Md_Avx_Srl256_VarMemVar(const STATEMENT&);
+		void						Emit_Md_Avx_Srl256_VarMemCst(const STATEMENT&);
 
 		static CX86Assembler::REGISTER g_baseRegister;
 
@@ -680,7 +767,13 @@ namespace Jitter
 		CX86Assembler::BYTEREGISTER	PrepareSymbolByteRegisterUse(CSymbol*, CX86Assembler::REGISTER);
 		void						CommitSymbolRegister(CSymbol*, CX86Assembler::REGISTER);
 
+		CX86Assembler::XMMREGISTER	PrepareSymbolRegisterDefMd(CSymbol*, CX86Assembler::XMMREGISTER);
+		CX86Assembler::XMMREGISTER	PrepareSymbolRegisterUseMdAvx(CSymbol*, CX86Assembler::XMMREGISTER);
+		void						CommitSymbolRegisterMdAvx(CSymbol*, CX86Assembler::XMMREGISTER);
+
 		virtual CX86Assembler::REGISTER PrepareRefSymbolRegisterUse(CSymbol*, CX86Assembler::REGISTER) = 0;
+
+		static const LITERAL128		g_makeSzShufflePattern;
 
 		CX86Assembler				m_assembler;
 		CX86Assembler::REGISTER*	m_registers = nullptr;
@@ -690,26 +783,31 @@ namespace Jitter
 		uint32						m_stackLevel = 0;
 		uint32						m_registerUsage = 0;
 		
+		bool						m_hasSsse3 = false;
+		bool						m_hasSse41 = false;
+		bool						m_hasAvx = false;
+
 	private:
 		typedef void (CCodeGen_x86::*ConstCodeEmitterType)(const STATEMENT&);
 
 		struct CONSTMATCHER
 		{
-			OPERATION				op;
-			MATCHTYPE				dstType;
-			MATCHTYPE				src1Type;
-			MATCHTYPE				src2Type;
-			ConstCodeEmitterType	emitter;
+			OPERATION op;
+			MATCHTYPE dstType;
+			MATCHTYPE src1Type;
+			MATCHTYPE src2Type;
+			MATCHTYPE src3Type;
+			ConstCodeEmitterType emitter;
 		};
 
 		void						InsertMatchers(const CONSTMATCHER*);
 		void						SetGenerationFlags();
 		
-		bool						m_hasSsse3 = false;
-		bool						m_hasSse41 = false;
-
 		static CONSTMATCHER			g_constMatchers[];
 		static CONSTMATCHER			g_fpuConstMatchers[];
+		static CONSTMATCHER			g_fpuSseConstMatchers[];
+		static CONSTMATCHER			g_fpuAvxConstMatchers[];
+
 		static CONSTMATCHER			g_mdConstMatchers[];
 
 		static CONSTMATCHER			g_mdMinMaxWConstMatchers[];
@@ -720,5 +818,7 @@ namespace Jitter
 
 		static CONSTMATCHER			g_mdFpFlagConstMatchers[];
 		static CONSTMATCHER			g_mdFpFlagSsse3ConstMatchers[];
+
+		static CONSTMATCHER			g_mdAvxConstMatchers[];
 	};
 }

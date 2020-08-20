@@ -78,11 +78,12 @@ namespace Jitter
 
 		struct MATCHER
 		{
-			OPERATION			op;
-			MATCHTYPE			dstType;
-			MATCHTYPE			src1Type;
-			MATCHTYPE			src2Type;
-			CodeEmitterType		emitter;
+			OPERATION op;
+			MATCHTYPE dstType;
+			MATCHTYPE src1Type;
+			MATCHTYPE src2Type;
+			MATCHTYPE src3Type = MATCH_NIL;
+			CodeEmitterType emitter;
 		};
 
 		typedef std::multimap<OPERATION, MATCHER> MatcherMapType;

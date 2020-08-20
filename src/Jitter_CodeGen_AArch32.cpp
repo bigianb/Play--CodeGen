@@ -1,3 +1,4 @@
+#include <stdexcept>
 #include "Jitter_CodeGen_AArch32.h"
 #include "ObjectFile.h"
 #include "BitManip.h"
@@ -85,8 +86,8 @@ void CCodeGen_AArch32::Emit_Alu_GenericAnyCst(const STATEMENT& statement)
 }
 
 #define ALU_CONST_MATCHERS(ALUOP_CST, ALUOP) \
-	{ ALUOP_CST,	MATCH_ANY,		MATCH_ANY,		MATCH_CONSTANT,	&CCodeGen_AArch32::Emit_Alu_GenericAnyCst<ALUOP>		}, \
-	{ ALUOP_CST,	MATCH_ANY,		MATCH_ANY,		MATCH_ANY,		&CCodeGen_AArch32::Emit_Alu_GenericAnyAny<ALUOP>		},
+	{ ALUOP_CST, MATCH_ANY, MATCH_ANY, MATCH_CONSTANT, MATCH_NIL, &CCodeGen_AArch32::Emit_Alu_GenericAnyCst<ALUOP> }, \
+	{ ALUOP_CST, MATCH_ANY, MATCH_ANY, MATCH_ANY,      MATCH_NIL, &CCodeGen_AArch32::Emit_Alu_GenericAnyAny<ALUOP> },
 
 #include "Jitter_CodeGen_AArch32_Div.h"
 
@@ -135,18 +136,18 @@ void CCodeGen_AArch32::Emit_Shift_Generic(const STATEMENT& statement)
 
 CCodeGen_AArch32::CONSTMATCHER CCodeGen_AArch32::g_constMatchers[] = 
 { 
-	{ OP_LABEL,			MATCH_NIL,			MATCH_NIL,			MATCH_NIL,			&CCodeGen_AArch32::MarkLabel									},
+	{ OP_LABEL, MATCH_NIL,    MATCH_NIL, MATCH_NIL, MATCH_NIL, &CCodeGen_AArch32::MarkLabel },
 
-	{ OP_NOP,			MATCH_NIL,			MATCH_NIL,			MATCH_NIL,			&CCodeGen_AArch32::Emit_Nop										},
+	{ OP_NOP, MATCH_NIL,      MATCH_NIL, MATCH_NIL, MATCH_NIL, &CCodeGen_AArch32::Emit_Nop },
 	
-	{ OP_MOV,			MATCH_REGISTER,		MATCH_REGISTER,		MATCH_NIL,			&CCodeGen_AArch32::Emit_Mov_RegReg								},
-	{ OP_MOV,			MATCH_REGISTER,		MATCH_MEMORY,		MATCH_NIL,			&CCodeGen_AArch32::Emit_Mov_RegMem								},
-	{ OP_MOV,			MATCH_REGISTER,		MATCH_CONSTANT,		MATCH_NIL,			&CCodeGen_AArch32::Emit_Mov_RegCst								},
-	{ OP_MOV,			MATCH_MEMORY,		MATCH_REGISTER,		MATCH_NIL,			&CCodeGen_AArch32::Emit_Mov_MemReg								},
-	{ OP_MOV,			MATCH_MEMORY,		MATCH_MEMORY,		MATCH_NIL,			&CCodeGen_AArch32::Emit_Mov_MemMem								},
-	{ OP_MOV,			MATCH_MEMORY,		MATCH_CONSTANT,		MATCH_NIL,			&CCodeGen_AArch32::Emit_Mov_MemCst								},
+	{ OP_MOV, MATCH_REGISTER, MATCH_REGISTER, MATCH_NIL, MATCH_NIL, &CCodeGen_AArch32::Emit_Mov_RegReg },
+	{ OP_MOV, MATCH_REGISTER, MATCH_MEMORY,   MATCH_NIL, MATCH_NIL, &CCodeGen_AArch32::Emit_Mov_RegMem },
+	{ OP_MOV, MATCH_REGISTER, MATCH_CONSTANT, MATCH_NIL, MATCH_NIL, &CCodeGen_AArch32::Emit_Mov_RegCst },
+	{ OP_MOV, MATCH_MEMORY,   MATCH_REGISTER, MATCH_NIL, MATCH_NIL, &CCodeGen_AArch32::Emit_Mov_MemReg },
+	{ OP_MOV, MATCH_MEMORY,   MATCH_MEMORY,   MATCH_NIL, MATCH_NIL, &CCodeGen_AArch32::Emit_Mov_MemMem },
+	{ OP_MOV, MATCH_MEMORY,   MATCH_CONSTANT, MATCH_NIL, MATCH_NIL, &CCodeGen_AArch32::Emit_Mov_MemCst },
 
-	{ OP_MOV,			MATCH_REG_REF,		MATCH_MEM_REF,		MATCH_NIL,			&CCodeGen_AArch32::Emit_Mov_RegRefMemRef						},
+	{ OP_MOV, MATCH_REG_REF, MATCH_MEM_REF, MATCH_NIL, MATCH_NIL, &CCodeGen_AArch32::Emit_Mov_RegRefMemRef },
 
 	ALU_CONST_MATCHERS(OP_ADD, ALUOP_ADD)
 	ALU_CONST_MATCHERS(OP_SUB, ALUOP_SUB)
@@ -154,72 +155,78 @@ CCodeGen_AArch32::CONSTMATCHER CCodeGen_AArch32::g_constMatchers[] =
 	ALU_CONST_MATCHERS(OP_OR,  ALUOP_OR)
 	ALU_CONST_MATCHERS(OP_XOR, ALUOP_XOR)
 	
-	{ OP_LZC,			MATCH_VARIABLE,		MATCH_VARIABLE,		MATCH_NIL,			&CCodeGen_AArch32::Emit_Lzc_VarVar								},
+	{ OP_LZC, MATCH_VARIABLE, MATCH_VARIABLE, MATCH_NIL, MATCH_NIL, &CCodeGen_AArch32::Emit_Lzc_VarVar },
 
-	{ OP_SRL,			MATCH_ANY,			MATCH_ANY,			MATCH_ANY,			&CCodeGen_AArch32::Emit_Shift_Generic<CAArch32Assembler::SHIFT_LSR>	},
-	{ OP_SRA,			MATCH_ANY,			MATCH_ANY,			MATCH_ANY,			&CCodeGen_AArch32::Emit_Shift_Generic<CAArch32Assembler::SHIFT_ASR>	},
-	{ OP_SLL,			MATCH_ANY,			MATCH_ANY,			MATCH_ANY,			&CCodeGen_AArch32::Emit_Shift_Generic<CAArch32Assembler::SHIFT_LSL>	},
+	{ OP_SRL, MATCH_ANY, MATCH_ANY, MATCH_ANY, MATCH_NIL, &CCodeGen_AArch32::Emit_Shift_Generic<CAArch32Assembler::SHIFT_LSR> },
+	{ OP_SRA, MATCH_ANY, MATCH_ANY, MATCH_ANY, MATCH_NIL, &CCodeGen_AArch32::Emit_Shift_Generic<CAArch32Assembler::SHIFT_ASR> },
+	{ OP_SLL, MATCH_ANY, MATCH_ANY, MATCH_ANY, MATCH_NIL, &CCodeGen_AArch32::Emit_Shift_Generic<CAArch32Assembler::SHIFT_LSL> },
 
-	{ OP_PARAM,			MATCH_NIL,			MATCH_CONTEXT,		MATCH_NIL,			&CCodeGen_AArch32::Emit_Param_Ctx								},
-	{ OP_PARAM,			MATCH_NIL,			MATCH_REGISTER,		MATCH_NIL,			&CCodeGen_AArch32::Emit_Param_Reg								},
-	{ OP_PARAM,			MATCH_NIL,			MATCH_MEMORY,		MATCH_NIL,			&CCodeGen_AArch32::Emit_Param_Mem								},
-	{ OP_PARAM,			MATCH_NIL,			MATCH_CONSTANT,		MATCH_NIL,			&CCodeGen_AArch32::Emit_Param_Cst								},
-	{ OP_PARAM,			MATCH_NIL,			MATCH_MEMORY64,		MATCH_NIL,			&CCodeGen_AArch32::Emit_Param_Mem64								},
-	{ OP_PARAM,			MATCH_NIL,			MATCH_CONSTANT64,	MATCH_NIL,			&CCodeGen_AArch32::Emit_Param_Cst64								},
-	{ OP_PARAM,			MATCH_NIL,			MATCH_MEMORY128,	MATCH_NIL,			&CCodeGen_AArch32::Emit_Param_Mem128							},
+	{ OP_PARAM, MATCH_NIL, MATCH_CONTEXT,    MATCH_NIL, MATCH_NIL, &CCodeGen_AArch32::Emit_Param_Ctx    },
+	{ OP_PARAM, MATCH_NIL, MATCH_REGISTER,   MATCH_NIL, MATCH_NIL, &CCodeGen_AArch32::Emit_Param_Reg    },
+	{ OP_PARAM, MATCH_NIL, MATCH_MEMORY,     MATCH_NIL, MATCH_NIL, &CCodeGen_AArch32::Emit_Param_Mem    },
+	{ OP_PARAM, MATCH_NIL, MATCH_CONSTANT,   MATCH_NIL, MATCH_NIL, &CCodeGen_AArch32::Emit_Param_Cst    },
+	{ OP_PARAM, MATCH_NIL, MATCH_MEMORY64,   MATCH_NIL, MATCH_NIL, &CCodeGen_AArch32::Emit_Param_Mem64  },
+	{ OP_PARAM, MATCH_NIL, MATCH_CONSTANT64, MATCH_NIL, MATCH_NIL, &CCodeGen_AArch32::Emit_Param_Cst64  },
+	{ OP_PARAM, MATCH_NIL, MATCH_MEMORY128,  MATCH_NIL, MATCH_NIL, &CCodeGen_AArch32::Emit_Param_Mem128 },
 
-	{ OP_PARAM_RET,		MATCH_NIL,			MATCH_TEMPORARY128,	MATCH_NIL,			&CCodeGen_AArch32::Emit_ParamRet_Tmp128							},
+	{ OP_PARAM_RET, MATCH_NIL, MATCH_TEMPORARY128, MATCH_NIL, MATCH_NIL, &CCodeGen_AArch32::Emit_ParamRet_Tmp128 },
 
-	{ OP_CALL,			MATCH_NIL,			MATCH_CONSTANTPTR,	MATCH_CONSTANT,		&CCodeGen_AArch32::Emit_Call									},
+	{ OP_CALL, MATCH_NIL, MATCH_CONSTANTPTR, MATCH_CONSTANT, MATCH_NIL, &CCodeGen_AArch32::Emit_Call },
 	
-	{ OP_RETVAL,		MATCH_REGISTER,		MATCH_NIL,			MATCH_NIL,			&CCodeGen_AArch32::Emit_RetVal_Reg								},
-	{ OP_RETVAL,		MATCH_TEMPORARY,	MATCH_NIL,			MATCH_NIL,			&CCodeGen_AArch32::Emit_RetVal_Tmp								},
-	{ OP_RETVAL,		MATCH_MEMORY64,		MATCH_NIL,			MATCH_NIL,			&CCodeGen_AArch32::Emit_RetVal_Mem64							},
+	{ OP_RETVAL, MATCH_REGISTER,  MATCH_NIL, MATCH_NIL, MATCH_NIL, &CCodeGen_AArch32::Emit_RetVal_Reg   },
+	{ OP_RETVAL, MATCH_TEMPORARY, MATCH_NIL, MATCH_NIL, MATCH_NIL, &CCodeGen_AArch32::Emit_RetVal_Tmp   },
+	{ OP_RETVAL, MATCH_MEMORY64,  MATCH_NIL, MATCH_NIL, MATCH_NIL, &CCodeGen_AArch32::Emit_RetVal_Mem64 },
 
-	{ OP_EXTERNJMP,		MATCH_NIL,			MATCH_CONSTANTPTR,	MATCH_NIL,			&CCodeGen_AArch32::Emit_ExternJmp								},
-	{ OP_EXTERNJMP_DYN,	MATCH_NIL,			MATCH_CONSTANTPTR,	MATCH_NIL,			&CCodeGen_AArch32::Emit_ExternJmpDynamic						},
+	{ OP_EXTERNJMP,     MATCH_NIL, MATCH_CONSTANTPTR, MATCH_NIL, MATCH_NIL, &CCodeGen_AArch32::Emit_ExternJmp        },
+	{ OP_EXTERNJMP_DYN, MATCH_NIL, MATCH_CONSTANTPTR, MATCH_NIL, MATCH_NIL, &CCodeGen_AArch32::Emit_ExternJmpDynamic },
 
-	{ OP_JMP,			MATCH_NIL,			MATCH_NIL,			MATCH_NIL,			&CCodeGen_AArch32::Emit_Jmp										},
+	{ OP_JMP, MATCH_NIL, MATCH_NIL, MATCH_NIL, MATCH_NIL, &CCodeGen_AArch32::Emit_Jmp },
 
-	{ OP_CONDJMP,		MATCH_NIL,			MATCH_VARIABLE,		MATCH_CONSTANT,		&CCodeGen_AArch32::Emit_CondJmp_VarCst							},
-	{ OP_CONDJMP,		MATCH_NIL,			MATCH_VARIABLE,		MATCH_VARIABLE,		&CCodeGen_AArch32::Emit_CondJmp_VarVar							},
-	{ OP_CONDJMP,		MATCH_NIL,			MATCH_VAR_REF,		MATCH_CONSTANT,		&CCodeGen_AArch32::Emit_CondJmp_Ref_VarCst						},
+	{ OP_CONDJMP, MATCH_NIL, MATCH_VARIABLE, MATCH_CONSTANT, MATCH_NIL, &CCodeGen_AArch32::Emit_CondJmp_VarCst     },
+	{ OP_CONDJMP, MATCH_NIL, MATCH_VARIABLE, MATCH_VARIABLE, MATCH_NIL, &CCodeGen_AArch32::Emit_CondJmp_VarVar     },
+	{ OP_CONDJMP, MATCH_NIL, MATCH_VAR_REF,  MATCH_CONSTANT, MATCH_NIL, &CCodeGen_AArch32::Emit_CondJmp_Ref_VarCst },
 	
-	{ OP_CMP,			MATCH_ANY,			MATCH_ANY,			MATCH_CONSTANT,		&CCodeGen_AArch32::Emit_Cmp_AnyAnyCst							},
-	{ OP_CMP,			MATCH_ANY,			MATCH_ANY,			MATCH_ANY,			&CCodeGen_AArch32::Emit_Cmp_AnyAnyAny							},
+	{ OP_CMP, MATCH_ANY, MATCH_ANY, MATCH_CONSTANT, MATCH_NIL, &CCodeGen_AArch32::Emit_Cmp_AnyAnyCst },
+	{ OP_CMP, MATCH_ANY, MATCH_ANY, MATCH_ANY,      MATCH_NIL, &CCodeGen_AArch32::Emit_Cmp_AnyAnyAny },
 
-	{ OP_NOT,			MATCH_REGISTER,		MATCH_REGISTER,		MATCH_NIL,			&CCodeGen_AArch32::Emit_Not_RegReg								},
-	{ OP_NOT,			MATCH_MEMORY,		MATCH_REGISTER,		MATCH_NIL,			&CCodeGen_AArch32::Emit_Not_MemReg								},
-	{ OP_NOT,			MATCH_MEMORY,		MATCH_MEMORY,		MATCH_NIL,			&CCodeGen_AArch32::Emit_Not_MemMem								},
+	{ OP_NOT, MATCH_REGISTER, MATCH_REGISTER, MATCH_NIL, MATCH_NIL, &CCodeGen_AArch32::Emit_Not_RegReg },
+	{ OP_NOT, MATCH_MEMORY,   MATCH_REGISTER, MATCH_NIL, MATCH_NIL, &CCodeGen_AArch32::Emit_Not_MemReg },
+	{ OP_NOT, MATCH_MEMORY,   MATCH_MEMORY,   MATCH_NIL, MATCH_NIL, &CCodeGen_AArch32::Emit_Not_MemMem },
 	
-	{ OP_DIV,			MATCH_TEMPORARY64,	MATCH_ANY,			MATCH_ANY,			&CCodeGen_AArch32::Emit_DivTmp64AnyAny<false>					},
-	{ OP_DIVS,			MATCH_TEMPORARY64,	MATCH_ANY,			MATCH_ANY,			&CCodeGen_AArch32::Emit_DivTmp64AnyAny<true>					},
+	{ OP_DIV,  MATCH_TEMPORARY64, MATCH_ANY, MATCH_ANY, MATCH_NIL, &CCodeGen_AArch32::Emit_DivTmp64AnyAny<false> },
+	{ OP_DIVS, MATCH_TEMPORARY64, MATCH_ANY, MATCH_ANY, MATCH_NIL, &CCodeGen_AArch32::Emit_DivTmp64AnyAny<true>  },
 	
-	{ OP_MUL,			MATCH_TEMPORARY64,	MATCH_ANY,			MATCH_ANY,			&CCodeGen_AArch32::Emit_MulTmp64AnyAny<false>					},
-	{ OP_MULS,			MATCH_TEMPORARY64,	MATCH_ANY,			MATCH_ANY,			&CCodeGen_AArch32::Emit_MulTmp64AnyAny<true>					},
+	{ OP_MUL,  MATCH_TEMPORARY64, MATCH_ANY, MATCH_ANY, MATCH_NIL, &CCodeGen_AArch32::Emit_MulTmp64AnyAny<false> },
+	{ OP_MULS, MATCH_TEMPORARY64, MATCH_ANY, MATCH_ANY, MATCH_NIL, &CCodeGen_AArch32::Emit_MulTmp64AnyAny<true>  },
 
-	{ OP_RELTOREF,		MATCH_VAR_REF,		MATCH_CONSTANT,		MATCH_ANY,			&CCodeGen_AArch32::Emit_RelToRef_VarCst							},
+	{ OP_RELTOREF, MATCH_VAR_REF, MATCH_CONSTANT, MATCH_ANY, MATCH_NIL, &CCodeGen_AArch32::Emit_RelToRef_VarCst },
 
-	{ OP_ADDREF,		MATCH_VAR_REF,		MATCH_VAR_REF,		MATCH_ANY,			&CCodeGen_AArch32::Emit_AddRef_VarVarAny						},
+	{ OP_ADDREF, MATCH_VAR_REF, MATCH_VAR_REF, MATCH_ANY, MATCH_NIL, &CCodeGen_AArch32::Emit_AddRef_VarVarAny },
 	
-	{ OP_ISREFNULL,		MATCH_VARIABLE,		MATCH_VAR_REF,		MATCH_ANY,			&CCodeGen_AArch32::Emit_IsRefNull_VarVar						},
+	{ OP_ISREFNULL, MATCH_VARIABLE, MATCH_VAR_REF, MATCH_ANY, MATCH_NIL, &CCodeGen_AArch32::Emit_IsRefNull_VarVar },
 
-	{ OP_LOADFROMREF,	MATCH_VARIABLE,		MATCH_VAR_REF,		MATCH_NIL,			&CCodeGen_AArch32::Emit_LoadFromRef_VarVar						},
-	{ OP_LOADFROMREF,	MATCH_VAR_REF,		MATCH_VAR_REF,		MATCH_NIL,			&CCodeGen_AArch32::Emit_LoadFromRef_Ref_VarVar					},
+	{ OP_LOADFROMREF, MATCH_VARIABLE, MATCH_VAR_REF, MATCH_NIL, MATCH_NIL, &CCodeGen_AArch32::Emit_LoadFromRef_VarVar     },
+	{ OP_LOADFROMREF, MATCH_VAR_REF,  MATCH_VAR_REF, MATCH_NIL, MATCH_NIL, &CCodeGen_AArch32::Emit_LoadFromRef_Ref_VarVar },
 
-	{ OP_LOAD8FROMREF,	MATCH_VARIABLE,		MATCH_VAR_REF,		MATCH_NIL,			&CCodeGen_AArch32::Emit_Load8FromRef_MemVar						},
+	{ OP_LOADFROMREFIDX, MATCH_VARIABLE, MATCH_VAR_REF, MATCH_VARIABLE, MATCH_NIL, &CCodeGen_AArch32::Emit_LoadFromRefIdx_VarVarVar },
+	{ OP_LOADFROMREFIDX, MATCH_VARIABLE, MATCH_VAR_REF, MATCH_CONSTANT, MATCH_NIL, &CCodeGen_AArch32::Emit_LoadFromRefIdx_VarVarCst },
 
-	{ OP_LOAD16FROMREF,	MATCH_VARIABLE,		MATCH_VAR_REF,		MATCH_NIL,			&CCodeGen_AArch32::Emit_Load16FromRef_MemVar					},
+	{ OP_LOAD8FROMREF, MATCH_VARIABLE, MATCH_VAR_REF, MATCH_NIL, MATCH_NIL, &CCodeGen_AArch32::Emit_Load8FromRef_MemVar },
+
+	{ OP_LOAD16FROMREF, MATCH_VARIABLE, MATCH_VAR_REF, MATCH_NIL, MATCH_NIL, &CCodeGen_AArch32::Emit_Load16FromRef_MemVar },
 
 	//Cannot use MATCH_ANY here because it will match SYM_RELATIVE128
-	{ OP_STOREATREF,	MATCH_NIL,			MATCH_VAR_REF,		MATCH_VARIABLE,		&CCodeGen_AArch32::Emit_StoreAtRef_VarAny						},
-	{ OP_STOREATREF,	MATCH_NIL,			MATCH_VAR_REF,		MATCH_CONSTANT,		&CCodeGen_AArch32::Emit_StoreAtRef_VarAny						},
+	{ OP_STOREATREF, MATCH_NIL, MATCH_VAR_REF, MATCH_VARIABLE, MATCH_NIL, &CCodeGen_AArch32::Emit_StoreAtRef_VarAny },
+	{ OP_STOREATREF, MATCH_NIL, MATCH_VAR_REF, MATCH_CONSTANT, MATCH_NIL, &CCodeGen_AArch32::Emit_StoreAtRef_VarAny },
 	
-	{ OP_STORE8ATREF,	MATCH_NIL,			MATCH_VAR_REF,		MATCH_ANY,			&CCodeGen_AArch32::Emit_Store8AtRef_VarAny						},
+	{ OP_STOREATREFIDX, MATCH_NIL, MATCH_VAR_REF, MATCH_VARIABLE, MATCH_ANY, &CCodeGen_AArch32::Emit_StoreAtRefIdx_VarVarAny },
+	{ OP_STOREATREFIDX, MATCH_NIL, MATCH_VAR_REF, MATCH_CONSTANT, MATCH_ANY, &CCodeGen_AArch32::Emit_StoreAtRefIdx_VarCstAny },
 
-	{ OP_STORE16ATREF,	MATCH_NIL,			MATCH_VAR_REF,		MATCH_ANY,			&CCodeGen_AArch32::Emit_Store16AtRef_VarAny						},
+	{ OP_STORE8ATREF, MATCH_NIL, MATCH_VAR_REF, MATCH_ANY, MATCH_NIL, &CCodeGen_AArch32::Emit_Store8AtRef_VarAny },
 
-	{ OP_MOV,			MATCH_NIL,			MATCH_NIL,			MATCH_NIL,			NULL														},
+	{ OP_STORE16ATREF, MATCH_NIL, MATCH_VAR_REF, MATCH_ANY, MATCH_NIL, &CCodeGen_AArch32::Emit_Store16AtRef_VarAny },
+
+	{ OP_MOV, MATCH_NIL, MATCH_NIL, MATCH_NIL, MATCH_NIL, nullptr },
 };
 
 CCodeGen_AArch32::CCodeGen_AArch32()
@@ -232,49 +239,15 @@ CCodeGen_AArch32::CCodeGen_AArch32()
 	}
 #endif
 
-	for(auto* constMatcher = g_constMatchers; constMatcher->emitter != nullptr; constMatcher++)
-	{
-		MATCHER matcher;
-		matcher.op			= constMatcher->op;
-		matcher.dstType		= constMatcher->dstType;
-		matcher.src1Type	= constMatcher->src1Type;
-		matcher.src2Type	= constMatcher->src2Type;
-		matcher.emitter		= std::bind(constMatcher->emitter, this, std::placeholders::_1);
-		m_matchers.insert(MatcherMapType::value_type(matcher.op, matcher));
-	}
+	InsertMatchers(g_constMatchers);
+	InsertMatchers(g_64ConstMatchers);
+	InsertMatchers(g_fpuConstMatchers);
+	InsertMatchers(g_mdConstMatchers);
+}
 
-	for(auto* constMatcher = g_64ConstMatchers; constMatcher->emitter != nullptr; constMatcher++)
-	{
-		MATCHER matcher;
-		matcher.op			= constMatcher->op;
-		matcher.dstType		= constMatcher->dstType;
-		matcher.src1Type	= constMatcher->src1Type;
-		matcher.src2Type	= constMatcher->src2Type;
-		matcher.emitter		= std::bind(constMatcher->emitter, this, std::placeholders::_1);
-		m_matchers.insert(MatcherMapType::value_type(matcher.op, matcher));
-	}
-
-	for(auto* constMatcher = g_fpuConstMatchers; constMatcher->emitter != nullptr; constMatcher++)
-	{
-		MATCHER matcher;
-		matcher.op			= constMatcher->op;
-		matcher.dstType		= constMatcher->dstType;
-		matcher.src1Type	= constMatcher->src1Type;
-		matcher.src2Type	= constMatcher->src2Type;
-		matcher.emitter		= std::bind(constMatcher->emitter, this, std::placeholders::_1);
-		m_matchers.insert(MatcherMapType::value_type(matcher.op, matcher));
-	}
-
-	for(auto* constMatcher = g_mdConstMatchers; constMatcher->emitter != nullptr; constMatcher++)
-	{
-		MATCHER matcher;
-		matcher.op			= constMatcher->op;
-		matcher.dstType		= constMatcher->dstType;
-		matcher.src1Type	= constMatcher->src1Type;
-		matcher.src2Type	= constMatcher->src2Type;
-		matcher.emitter		= std::bind(constMatcher->emitter, this, std::placeholders::_1);
-		m_matchers.insert(MatcherMapType::value_type(matcher.op, matcher));
-	}
+void CCodeGen_AArch32::SetPlatformAbi(PLATFORM_ABI platformAbi)
+{
+	m_platformAbi = platformAbi;
 }
 
 unsigned int CCodeGen_AArch32::GetAvailableRegisterCount() const
@@ -332,6 +305,7 @@ void CCodeGen_AArch32::GenerateCode(const StatementList& statements, unsigned in
 			if(!SymbolMatches(matcher.dstType, statement.dst)) continue;
 			if(!SymbolMatches(matcher.src1Type, statement.src1)) continue;
 			if(!SymbolMatches(matcher.src2Type, statement.src2)) continue;
+			if(!SymbolMatches(matcher.src3Type, statement.src3)) continue;
 			matcher.emitter(statement);
 			found = true;
 			break;
@@ -348,7 +322,23 @@ void CCodeGen_AArch32::GenerateCode(const StatementList& statements, unsigned in
 
 	m_assembler.ResolveLabelReferences();
 	m_assembler.ClearLabels();
+	m_assembler.ResolveLiteralReferences();
 	m_labels.clear();
+}
+
+void CCodeGen_AArch32::InsertMatchers(const CONSTMATCHER* constMatchers)
+{
+	for(auto* constMatcher = constMatchers; constMatcher->emitter != nullptr; constMatcher++)
+	{
+		MATCHER matcher;
+		matcher.op       = constMatcher->op;
+		matcher.dstType  = constMatcher->dstType;
+		matcher.src1Type = constMatcher->src1Type;
+		matcher.src2Type = constMatcher->src2Type;
+		matcher.src3Type = constMatcher->src3Type;
+		matcher.emitter  = std::bind(constMatcher->emitter, this, std::placeholders::_1);
+		m_matchers.insert(MatcherMapType::value_type(matcher.op, matcher));
+	}
 }
 
 uint16 CCodeGen_AArch32::GetSavedRegisterList(uint32 registerUsage)
@@ -733,13 +723,16 @@ CCodeGen_AArch32::ParamRegisterPair CCodeGen_AArch32::PrepareParam64(PARAM_STATE
 {
 	assert(!paramState.prepared);
 	paramState.prepared = true;
-#ifdef __ANDROID__
-	//TODO: This needs to be an ABI flag or something
-	if(paramState.index & 1)
+	//On ARM EABI, 64 bits params have a 8-byte alignment requirement
+	//If the param is passed through registers, it has to start on an even register
+	//On iOS ABI, 64 bit params have a 4-byte alignment, alignment is not required
+	if(m_platformAbi == PLATFORM_ABI_ARMEABI)
 	{
-		paramState.index++;
+		if(paramState.index & 1)
+		{
+			paramState.index++;
+		}
 	}
-#endif
 	ParamRegisterPair result;
 	for(unsigned int i = 0; i < 2; i++)
 	{
@@ -1455,6 +1448,51 @@ void CCodeGen_AArch32::Emit_LoadFromRef_Ref_VarVar(const STATEMENT& statement)
 	CommitSymbolRegisterRef(dst, dstReg);
 }
 
+void CCodeGen_AArch32::Emit_LoadFromRefIdx_VarVarVar(const STATEMENT& statement)
+{
+	auto dst = statement.dst->GetSymbol().get();
+	auto src1 = statement.src1->GetSymbol().get();
+	auto src2 = statement.src2->GetSymbol().get();
+
+	uint8 scale = static_cast<uint8>(statement.jmpCondition);
+	assert(scale == 1);
+
+	auto dstReg = PrepareSymbolRegisterDef(dst, CAArch32Assembler::r0);
+	auto addressReg = PrepareSymbolRegisterUseRef(src1, CAArch32Assembler::r1);
+	auto indexReg = PrepareSymbolRegisterUse(src2, CAArch32Assembler::r2);
+
+	m_assembler.Ldr(dstReg, addressReg, CAArch32Assembler::MakeRegisterLdrAddress(indexReg));
+
+	CommitSymbolRegister(dst, dstReg);
+}
+
+void CCodeGen_AArch32::Emit_LoadFromRefIdx_VarVarCst(const STATEMENT& statement)
+{
+	auto dst = statement.dst->GetSymbol().get();
+	auto src1 = statement.src1->GetSymbol().get();
+	auto src2 = statement.src2->GetSymbol().get();
+
+	assert(src2->m_type == SYM_CONSTANT);
+	
+	uint8 scale = static_cast<uint8>(statement.jmpCondition);
+	assert(scale == 1);
+
+	auto dstReg = PrepareSymbolRegisterDef(dst, CAArch32Assembler::r0);
+	auto addressReg = PrepareSymbolRegisterUseRef(src1, CAArch32Assembler::r1);
+
+	if(src2->m_valueLow < 4096)
+	{
+		m_assembler.Ldr(dstReg, addressReg, CAArch32Assembler::MakeImmediateLdrAddress(src2->m_valueLow));
+	}
+	else
+	{
+		auto indexReg = PrepareSymbolRegisterUse(src2, CAArch32Assembler::r2);
+		m_assembler.Ldr(dstReg, addressReg, CAArch32Assembler::MakeRegisterLdrAddress(indexReg));
+	}
+
+	CommitSymbolRegister(dst, dstReg);
+}
+
 void CCodeGen_AArch32::Emit_Load8FromRef_MemVar(const STATEMENT& statement)
 {
 	auto dst = statement.dst->GetSymbol().get();
@@ -1490,6 +1528,60 @@ void CCodeGen_AArch32::Emit_StoreAtRef_VarAny(const STATEMENT& statement)
 	auto valueReg = PrepareSymbolRegisterUse(src2, CAArch32Assembler::r1);
 	
 	m_assembler.Str(valueReg, addressReg, CAArch32Assembler::MakeImmediateLdrAddress(0));
+}
+
+void CCodeGen_AArch32::Emit_StoreAtRefIdx_VarVarAny(const STATEMENT& statement)
+{
+	auto src1 = statement.src1->GetSymbol().get();
+	auto src2 = statement.src2->GetSymbol().get();
+	auto src3 = statement.src3->GetSymbol().get();
+	
+	uint8 scale = static_cast<uint8>(statement.jmpCondition);
+
+	auto addressReg = PrepareSymbolRegisterUseRef(src1, CAArch32Assembler::r0);
+	auto indexReg = PrepareSymbolRegisterUse(src2, CAArch32Assembler::r1);
+	auto valueReg = PrepareSymbolRegisterUse(src3, CAArch32Assembler::r2);
+	
+	auto ldrAddress =
+		[&]()
+		{
+			switch(scale)
+			{
+			default:
+				assert(false);
+			case 1:
+				return CAArch32Assembler::MakeRegisterLdrAddress(indexReg);
+			case 4:
+				return CAArch32Assembler::MakeRegisterLdrAddress(indexReg, CAArch32Assembler::SHIFT_LSL, 2);
+			}
+		}();
+
+	m_assembler.Str(valueReg, addressReg, ldrAddress);
+}
+
+void CCodeGen_AArch32::Emit_StoreAtRefIdx_VarCstAny(const STATEMENT& statement)
+{
+	auto src1 = statement.src1->GetSymbol().get();
+	auto src2 = statement.src2->GetSymbol().get();
+	auto src3 = statement.src3->GetSymbol().get();
+
+	assert(src2->m_type == SYM_CONSTANT);
+	
+	uint8 scale = static_cast<uint8>(statement.jmpCondition);
+	assert(scale == 1);
+
+	auto addressReg = PrepareSymbolRegisterUseRef(src1, CAArch32Assembler::r0);
+	auto valueReg = PrepareSymbolRegisterUse(src3, CAArch32Assembler::r2);
+
+	if(src2->m_valueLow < 4096)
+	{
+		m_assembler.Str(valueReg, addressReg, CAArch32Assembler::MakeImmediateLdrAddress(src2->m_valueLow));
+	}
+	else
+	{
+		auto indexReg = PrepareSymbolRegisterUse(src2, CAArch32Assembler::r1);
+		m_assembler.Str(valueReg, addressReg, CAArch32Assembler::MakeRegisterLdrAddress(indexReg));
+	}
 }
 
 void CCodeGen_AArch32::Emit_Store8AtRef_VarAny(const STATEMENT& statement)

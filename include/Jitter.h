@@ -106,11 +106,14 @@ namespace Jitter
 		void							AddRef();
 		void							IsRefNull();
 		void							LoadFromRef();
+		void							LoadFromRefIdx();
 		void							Load8FromRef();
 		void							Load16FromRef();
 		void							Load64FromRef();
 		void							LoadRefFromRef();
 		void							StoreAtRef();
+		void							StoreAtRefIdx();
+		void							StoreAtRefIdx4();
 		void							Store8AtRef();
 		void							Store16AtRef();
 		void							Store64AtRef();
@@ -185,9 +188,10 @@ namespace Jitter
 		void							MD_CmpGtB();
 		void							MD_CmpGtH();
 		void							MD_CmpGtW();
+		void							MD_CmpLtS();
+		void							MD_CmpGtS();
 		void							MD_DivS();
-		void							MD_IsNegative();
-		void							MD_IsZero();
+		void							MD_MakeSignZero();
 		void							MD_MaxH();
 		void							MD_MaxW();
 		void							MD_MaxS();
@@ -289,6 +293,7 @@ namespace Jitter
 		bool							ConstantFolding(StatementList&);
 		bool							ConstantPropagation(StatementList&);
 		bool							CopyPropagation(StatementList&);
+		bool							ReorderAdd(StatementList&);
 		bool							DeadcodeElimination(VERSIONED_STATEMENT_LIST&);
 
 		void							FixFlowControl(StatementList&);

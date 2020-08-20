@@ -80,6 +80,7 @@ namespace Jitter
 			MATCHTYPE               dstType;
 			MATCHTYPE               src1Type;
 			MATCHTYPE               src2Type;
+			MATCHTYPE               src3Type;
 			ConstCodeEmitterType    emitter;
 		};
 
@@ -480,6 +481,11 @@ namespace Jitter
 		{
 			static OpRegType OpReg() { return &CAArch64Assembler::Fmax_4s; }
 		};
+		
+		struct MDOP_CMPGTS : public MDOP_BASE3
+		{
+			static OpRegType OpReg() { return &CAArch64Assembler::Fcmgt_4s; }
+		};
 
 		struct MDOP_TOSINGLE : public MDOP_BASE2
 		{
@@ -504,6 +510,11 @@ namespace Jitter
 		struct MDOP_XOR : public MDOP_BASE3
 		{
 			static OpRegType OpReg() { return &CAArch64Assembler::Eor_16b; }
+		};
+		
+		struct MDOP_NOT : public MDOP_BASE2
+		{
+			static OpRegType OpReg() { return &CAArch64Assembler::Mvn_16b; }
 		};
 		
 		struct MDOP_UNPACK_LOWER_BH : public MDOP_BASE3
@@ -609,8 +620,12 @@ namespace Jitter
 		void    Emit_IsRefNull_VarVar(const STATEMENT&);
 		void    Emit_LoadFromRef_VarVar(const STATEMENT&);
 		void    Emit_LoadFromRef_Ref_VarVar(const STATEMENT&);
+		void    Emit_LoadFromRefIdx_VarVarVar(const STATEMENT&);
+		void    Emit_LoadFromRefIdx_VarVarCst(const STATEMENT&);
 		void    Emit_StoreAtRef_VarAny(const STATEMENT&);
-		
+		void    Emit_StoreAtRefIdx_VarVarAny(const STATEMENT&);
+		void    Emit_StoreAtRefIdx_VarCstAny(const STATEMENT&);
+
 		void    Emit_Load8FromRef_MemVar(const STATEMENT&);
 		void    Emit_Store8AtRef_VarAny(const STATEMENT&);
 
@@ -700,14 +715,15 @@ namespace Jitter
 		template <typename> void    Emit_Md_VarVarVar(const STATEMENT&);
 		template <typename> void    Emit_Md_VarVarVarRev(const STATEMENT&);
 		template <typename> void    Emit_Md_Shift_VarVarCst(const STATEMENT&);
-		template <typename> void    Emit_Md_Test_VarVar(const STATEMENT&);
+		
+		void    Emit_Md_MakeSz_VarVar(const STATEMENT&);
 
 		void    Emit_Md_Mov_RegReg(const STATEMENT&);
 		void    Emit_Md_Mov_RegMem(const STATEMENT&);
 		void    Emit_Md_Mov_MemReg(const STATEMENT&);
 		void    Emit_Md_Mov_MemMem(const STATEMENT&);
 		
-		void    Emit_Md_Not_VarVar(const STATEMENT&);
+		void    Emit_Md_CmpLtS_VarVarVar(const STATEMENT&);
 		
 		void    Emit_Md_LoadFromRef_VarVar(const STATEMENT&);
 		void    Emit_Md_StoreAtRef_VarVar(const STATEMENT&);

@@ -1,10 +1,12 @@
 #include <assert.h>
 #include <stdexcept>
 #include "X86Assembler.h"
+#include "LiteralPool.h"
 
 void CX86Assembler::Begin()
 {
 	m_nextLabelId = 1;
+	m_nextLiteral128Id = 1;
 	m_currentLabel = nullptr;
 	m_tmpStream.ResetBuffer();
 	m_labels.clear();
@@ -34,12 +36,12 @@ void CX86Assembler::End()
 		for(LabelArray::const_iterator labelIterator(m_labelOrder.begin());
 			labelIterator != m_labelOrder.end(); ++labelIterator)
 		{
-			LABELINFO& label = m_labels[*labelIterator];
+			auto& label = m_labels[*labelIterator];
 
 			for(LabelRefArray::iterator labelRefIterator(label.labelRefs.begin());
 				labelRefIterator != label.labelRefs.end(); ++labelRefIterator)
 			{
-				LABELREF& labelRef(*labelRefIterator);
+				auto& labelRef(*labelRefIterator);
 				switch(labelRef.length)
 				{
 					case JMP_NOTSET:
@@ -97,8 +99,8 @@ void CX86Assembler::End()
 			if(readSize != 0)
 			{
 				m_copyBuffer.resize(readSize);
-				m_tmpStream.Read(&m_copyBuffer[0], readSize);
-				m_outputStream->Write(&m_copyBuffer[0], readSize);
+				m_tmpStream.Read(m_copyBuffer.data(), readSize);
+				m_outputStream->Write(m_copyBuffer.data(), readSize);
 			}
 
 			//Write our jump here.
@@ -114,10 +116,12 @@ void CX86Assembler::End()
 		if(lastCopySize != 0)
 		{
 			m_copyBuffer.resize(lastCopySize);
-			m_tmpStream.Read(&m_copyBuffer[0], lastCopySize);
-			m_outputStream->Write(&m_copyBuffer[0], lastCopySize);
+			m_tmpStream.Read(m_copyBuffer.data(), lastCopySize);
+			m_outputStream->Write(m_copyBuffer.data(), lastCopySize);
 		}
 	}
+
+	ResolveLiteralReferences();
 }
 
 void CX86Assembler::IncrementJumpOffsets(LabelArray::const_iterator startLabel, unsigned int amount)
@@ -136,7 +140,15 @@ void CX86Assembler::IncrementJumpOffsetsLocal(LABELINFO& label, LabelRefArray::i
 	for(LabelRefArray::iterator labelRefIterator(startJump);
 		labelRefIterator != label.labelRefs.end(); ++labelRefIterator)
 	{
-		LABELREF& labelRef(*labelRefIterator);
+		auto& labelRef(*labelRefIterator);
+
+		//Make sure any literal ref happens before a label ref
+		for(const auto& literalRefPair : label.literal128Refs)
+		{
+			const auto& literalRef = literalRefPair.second;
+			assert(literalRef.offset < labelRef.offset);
+		}
+
 		labelRef.offset += amount;
 	}
 }
@@ -167,14 +179,11 @@ CX86Assembler::CAddress CX86Assembler::MakeXmmRegisterAddress(XMMREGISTER regist
 	return MakeRegisterAddress(static_cast<REGISTER>(registerId));
 }
 
-CX86Assembler::CAddress CX86Assembler::MakeByteRegisterAddress(REGISTER registerId)
+CX86Assembler::CAddress CX86Assembler::MakeByteRegisterAddress(BYTEREGISTER registerId)
 {
-	if(!HasByteRegister(registerId))
-	{
-		throw std::runtime_error("Unsupported byte register index.");
-	}
-
-	return MakeRegisterAddress(registerId);
+	auto address = MakeRegisterAddress(static_cast<REGISTER>(registerId));
+	address.usesLegacyByteRegister = true;
+	return address;
 }
 
 CX86Assembler::CAddress CX86Assembler::MakeIndRegAddress(REGISTER registerId)
@@ -235,8 +244,14 @@ CX86Assembler::CAddress CX86Assembler::MakeIndRegOffAddress(REGISTER nRegister, 
 		Address.sib.index = 4;
 		Address.sib.base = 4;
 	}
-
-	assert(nRegister != r12);
+	else if(nRegister == r12)
+	{
+		nRegister = static_cast<REGISTER>(4);
+		Address.nIsExtendedModRM = true;
+		Address.sib.scale = 0;
+		Address.sib.index = 4;
+		Address.sib.base = 4;
+	}
 
 	if(nRegister > 7)
 	{
@@ -262,16 +277,22 @@ CX86Assembler::CAddress CX86Assembler::MakeIndRegOffAddress(REGISTER nRegister, 
 
 CX86Assembler::CAddress CX86Assembler::MakeBaseIndexScaleAddress(REGISTER base, REGISTER index, uint8 scale)
 {
-	CAddress address;
-	address.ModRm.nRM = 4;
-	if(base == rBP || base == r13)
+	if(base == rBP)
 	{
 		throw std::runtime_error("Invalid base.");
+	}
+	if(base == r13)
+	{
+		return MakeBaseOffIndexScaleAddress(base, 0, index, scale);
 	}
 	if(index == rSP)
 	{
 		throw std::runtime_error("Invalid index.");
 	}
+
+	CAddress address;
+	address.ModRm.nRM = 4;
+	
 	if(base > 7)
 	{
 		address.nIsExtendedModRM = true;
@@ -306,6 +327,76 @@ CX86Assembler::CAddress CX86Assembler::MakeBaseIndexScaleAddress(REGISTER base, 
 	return address;
 }
 
+CX86Assembler::CAddress CX86Assembler::MakeBaseOffIndexScaleAddress(REGISTER base, uint32 offset, REGISTER index, uint8 scale)
+{
+	//This could also be rBP, but untested for now
+	if(base != r13)
+	{
+		throw std::runtime_error("Invalid base.");
+	}
+	if(index == rSP)
+	{
+		throw std::runtime_error("Invalid index.");
+	}
+
+	CAddress address;
+	address.ModRm.nRM = 4;
+
+	if(base > 7)
+	{
+		address.nIsExtendedModRM = true;
+		base = static_cast<REGISTER>(base & 7);
+	}
+	if(index > 7)
+	{
+		address.nIsExtendedSib = true;
+		index = static_cast<REGISTER>(index & 7);
+	}
+	address.sib.base = base;
+	address.sib.index = index;
+	switch(scale)
+	{
+	case 1:
+		address.sib.scale = 0;
+		break;
+	case 2:
+		address.sib.scale = 1;
+		break;
+	case 4:
+		address.sib.scale = 2;
+		break;
+	case 8:
+		address.sib.scale = 3;
+		break;
+	default:
+		throw std::runtime_error("Invalid scale.");
+		break;
+	}
+
+	if(GetMinimumConstantSize(offset) == 1)
+	{
+		address.ModRm.nMod = 1;
+		address.nOffset = static_cast<uint8>(offset);
+	}
+	else
+	{
+		address.ModRm.nMod = 2;
+		address.nOffset = offset;
+	}
+
+	return address;
+}
+
+CX86Assembler::CAddress CX86Assembler::MakeLiteral128Address(LITERAL128ID literalId)
+{
+	CAddress address;
+	address.nOffset = 0;
+	address.ModRm.nMod = 0;
+	address.ModRm.nRM = 5;
+	address.literal128Id = literalId;
+	return address;
+}
+
 CX86Assembler::LABEL CX86Assembler::CreateLabel()
 {
 	LABEL newLabelId = m_nextLabelId++;
@@ -324,7 +415,7 @@ void CX86Assembler::MarkLabel(LABEL label, int32 offset)
 
 	auto labelIterator(m_labels.find(label));
 	assert(labelIterator != m_labels.end());
-	LABELINFO& labelInfo(labelIterator->second);
+	auto& labelInfo(labelIterator->second);
 	labelInfo.start = currentPos;
 	m_currentLabel = &labelInfo;
 	m_labelOrder.push_back(label);
@@ -336,6 +427,41 @@ uint32 CX86Assembler::GetLabelOffset(LABEL label) const
 	assert(labelIterator != m_labels.end());
 	const auto& labelInfo(labelIterator->second);
 	return labelInfo.projectedStart;
+}
+
+CX86Assembler::LITERAL128ID CX86Assembler::CreateLiteral128(const LITERAL128& literal)
+{
+	auto literalId = m_nextLiteral128Id++;
+	LITERAL128REF literalRef;
+	literalRef.value = literal;
+	assert(m_currentLabel);
+	m_currentLabel->literal128Refs.insert(std::make_pair(literalId, literalRef));
+	return literalId;
+}
+
+void CX86Assembler::ResolveLiteralReferences()
+{
+	CLiteralPool literalPool(m_outputStream);
+	literalPool.AlignPool();
+
+	for(const auto& labelId : m_labelOrder)
+	{
+		const auto& label = m_labels[labelId];
+		assert(label.projectedStart >= label.start);
+		uint32 projectedDiff = label.projectedStart - label.start;
+		for(const auto& literalRefPair : label.literal128Refs)
+		{
+			const auto& literal = literalRefPair.second;
+			auto literalPos = static_cast<uint32>(literalPool.GetLiteralPosition(literal.value));
+			uint32 projectedOffset = literal.offset + projectedDiff;
+			m_outputStream->Seek(projectedOffset, Framework::STREAM_SEEK_SET);
+			static const uint32 opcodeSize = 4;
+			auto offset = literalPos - projectedOffset - opcodeSize;
+			m_outputStream->Write32(offset);
+		}
+	}
+
+	m_outputStream->Seek(0, Framework::STREAM_SEEK_END);
 }
 
 void CX86Assembler::AdcEd(REGISTER registerId, const CAddress& address)
@@ -380,6 +506,7 @@ void CX86Assembler::AndEq(REGISTER registerId, const CAddress& address)
 
 void CX86Assembler::AndIb(const CAddress& address, uint8 constant)
 {
+	assert(!address.NeedsExtendedByteAddress());
 	WriteEvIb(0x04, address, constant);
 }
 
@@ -425,6 +552,7 @@ void CX86Assembler::CmpEq(REGISTER nRegister, const CAddress& Address)
 
 void CX86Assembler::CmpIb(const CAddress& address, uint8 constant)
 {
+	assert(!address.NeedsExtendedByteAddress());
 	WriteEvIb(0x07, address, constant);
 }
 
@@ -567,6 +695,10 @@ void CX86Assembler::MovEq(REGISTER nRegister, const CAddress& Address)
 
 void CX86Assembler::MovGb(const CAddress& Address, BYTEREGISTER nRegister)
 {
+	if(Address.NeedsExtendedByteAddress())
+	{
+		throw std::runtime_error("Invalid operation.");
+	}
 	WriteEbGbOp(0x88, false, Address, nRegister);
 }
 
@@ -610,6 +742,8 @@ void CX86Assembler::MovIq(REGISTER registerId, uint64 constant)
 
 void CX86Assembler::MovIb(const CX86Assembler::CAddress& address, uint8 constant)
 {
+	assert(!address.NeedsExtendedByteAddress());
+
 	WriteRexByte(false, address);
 	CAddress newAddress(address);
 	newAddress.ModRm.nFnReg = 0x00;
@@ -644,7 +778,7 @@ void CX86Assembler::MovId(const CX86Assembler::CAddress& address, uint32 constan
 
 void CX86Assembler::MovsxEb(REGISTER registerId, const CAddress& address)
 {
-	WriteEvGvOp0F(0xBE, false, address, registerId);
+	WriteEbGvOp0F(0xBE, false, address, registerId);
 }
 
 void CX86Assembler::MovsxEw(REGISTER registerId, const CAddress& address)
@@ -654,7 +788,7 @@ void CX86Assembler::MovsxEw(REGISTER registerId, const CAddress& address)
 
 void CX86Assembler::MovzxEb(REGISTER registerId, const CAddress& address)
 {
-	WriteEvGvOp0F(0xB6, false, address, registerId);
+	WriteEbGvOp0F(0xB6, false, address, registerId);
 }
 
 void CX86Assembler::MovzxEw(REGISTER registerId, const CAddress& address)
@@ -768,8 +902,7 @@ void CX86Assembler::SbbId(const CAddress& Address, uint32 nConstant)
 
 void CX86Assembler::SetaEb(const CAddress& address)
 {
-	WriteByte(0x0F);
-	WriteEvOp(0x97, 0x00, false, address);
+	WriteEbOp_0F(0x97, 0x00, address);
 }
 
 void CX86Assembler::SetaeEb(const CAddress& address)
@@ -779,44 +912,37 @@ void CX86Assembler::SetaeEb(const CAddress& address)
 
 void CX86Assembler::SetbEb(const CAddress& address)
 {
-	WriteByte(0x0F);
-	WriteEvOp(0x92, 0x00, false, address);
+	WriteEbOp_0F(0x92, 0x00, address);
 }
 
 void CX86Assembler::SetbeEb(const CAddress& address)
 {
-	WriteByte(0x0F);
-	WriteEvOp(0x96, 0x00, false, address);
+	WriteEbOp_0F(0x96, 0x00, address);
 }
 
 void CX86Assembler::SeteEb(const CAddress& address)
 {
-	WriteByte(0x0F);
-	WriteEvOp(0x94, 0x00, false, address);
+	WriteEbOp_0F(0x94, 0x00, address);
 }
 
 void CX86Assembler::SetneEb(const CAddress& address)
 {
-	WriteByte(0x0F);
-	WriteEvOp(0x95, 0x00, false, address);
+	WriteEbOp_0F(0x95, 0x00, address);
 }
 
 void CX86Assembler::SetlEb(const CAddress& address)
 {
-	WriteByte(0x0F);
-	WriteEvOp(0x9C, 0x00, false, address);
+	WriteEbOp_0F(0x9C, 0x00, address);
 }
 
 void CX86Assembler::SetleEb(const CAddress& address)
 {
-	WriteByte(0x0F);
-	WriteEvOp(0x9E, 0x00, false, address);
+	WriteEbOp_0F(0x9E, 0x00, address);
 }
 
 void CX86Assembler::SetgEb(const CAddress& address)
 {
-	WriteByte(0x0F);
-	WriteEvOp(0x9F, 0x00, false, address);
+	WriteEbOp_0F(0x9F, 0x00, address);
 }
 
 void CX86Assembler::ShlEd(const CAddress& address)
@@ -909,13 +1035,13 @@ void CX86Assembler::SubIq(const CAddress& address, uint64 constant)
 	WriteEvIq(0x05, address, constant);
 }
 
-void CX86Assembler::TestEb(REGISTER registerId, const CAddress& address)
+void CX86Assembler::TestEb(BYTEREGISTER registerId, const CAddress& address)
 {
-	if(registerId > 3)
+	if(address.NeedsExtendedByteAddress())
 	{
-		throw std::runtime_error("Unsupported byte register index.");
+		throw std::runtime_error("Invalid operation.");
 	}
-	WriteEvGvOp(0x84, false, address, registerId);
+	WriteEbGbOp(0x84, false, address, registerId);
 }
 
 void CX86Assembler::TestEd(REGISTER registerId, const CAddress& address)
@@ -956,11 +1082,12 @@ void CX86Assembler::WriteRexByte(bool nIs64, const CAddress& Address)
 
 void CX86Assembler::WriteRexByte(bool nIs64, const CAddress& Address, REGISTER& nRegister, bool forceWrite)
 {
-	if((nIs64) || (Address.nIsExtendedModRM) || (nRegister > 7) || forceWrite)
+	if((nIs64) || (Address.nIsExtendedModRM) || (Address.nIsExtendedSib) || (nRegister > 7) || forceWrite)
 	{
 		uint8 nByte = 0x40;
 		nByte |= nIs64 ? 0x8 : 0x0;
 		nByte |= (nRegister > 7) ? 0x04 : 0x0;
+		nByte |= Address.nIsExtendedSib ? 0x02 : 0x0;
 		nByte |= Address.nIsExtendedModRM ? 0x1 : 0x0;
 
 		nRegister = static_cast<REGISTER>(nRegister & 7);
@@ -969,9 +1096,12 @@ void CX86Assembler::WriteRexByte(bool nIs64, const CAddress& Address, REGISTER& 
 	}
 }
 
-void CX86Assembler::WriteEvOp(uint8 opcode, uint8 subOpcode, bool is64, const CAddress& address)
+void CX86Assembler::WriteEbOp_0F(uint8 opcode, uint8 subOpcode, const CAddress& address)
 {
-	WriteRexByte(is64, address);
+	auto dummyReg = CX86Assembler::rAX;
+	bool forcedWrite = address.NeedsExtendedByteAddress();
+	WriteRexByte(false, address, dummyReg, forcedWrite);
+	WriteByte(0x0F);
 	CAddress newAddress(address);
 	newAddress.ModRm.nFnReg = subOpcode;
 	WriteByte(opcode);
@@ -993,6 +1123,27 @@ void CX86Assembler::WriteEbGbOp(uint8 nOp, bool nIs64, const CAddress& Address, 
 	NewAddress.ModRm.nFnReg = nRegister;
 	WriteByte(nOp);
 	NewAddress.Write(&m_tmpStream);
+}
+
+void CX86Assembler::WriteEbGvOp0F(uint8 op, bool is64, const CAddress& address, REGISTER registerId)
+{
+	assert(!(address.usesLegacyByteRegister && (registerId > 7)));
+	bool forcedWrite = address.NeedsExtendedByteAddress();
+	WriteRexByte(is64, address, registerId, forcedWrite);
+	WriteByte(0x0F);
+	CAddress NewAddress(address);
+	NewAddress.ModRm.nFnReg = registerId;
+	WriteByte(op);
+	NewAddress.Write(&m_tmpStream);
+}
+
+void CX86Assembler::WriteEvOp(uint8 opcode, uint8 subOpcode, bool is64, const CAddress& address)
+{
+	WriteRexByte(is64, address);
+	CAddress newAddress(address);
+	newAddress.ModRm.nFnReg = subOpcode;
+	WriteByte(opcode);
+	newAddress.Write(&m_tmpStream);
 }
 
 void CX86Assembler::WriteEvGvOp(uint8 nOp, bool nIs64, const CAddress& Address, REGISTER nRegister)
@@ -1191,6 +1342,7 @@ CX86Assembler::CAddress::CAddress()
 	sib.byteValue = 0;
 	nIsExtendedModRM = false;
 	nIsExtendedSib = false;
+	usesLegacyByteRegister = false;
 }
 
 void CX86Assembler::CAddress::Write(Framework::CStream* stream)
@@ -1216,4 +1368,9 @@ bool CX86Assembler::CAddress::HasSib() const
 {
 	if(ModRm.nMod == 3) return false;
 	return ModRm.nRM == 4;
+}
+
+bool CX86Assembler::CAddress::NeedsExtendedByteAddress() const
+{
+	return (ModRm.nMod == 0x03) && !usesLegacyByteRegister;
 }

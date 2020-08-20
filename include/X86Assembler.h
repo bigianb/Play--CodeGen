@@ -3,6 +3,7 @@
 #include "Types.h"
 #include "Stream.h"
 #include "MemStream.h"
+#include "Literal128.h"
 #include <map>
 #include <vector>
 
@@ -62,6 +63,7 @@ public:
 	};
 
 	typedef unsigned int LABEL;
+	typedef unsigned int LITERAL128ID;
 
 	class CAddress
 	{
@@ -70,6 +72,7 @@ public:
 
 		bool			nIsExtendedModRM;
 		bool			nIsExtendedSib;
+		bool			usesLegacyByteRegister;
 
 		union MODRMBYTE
 		{
@@ -96,8 +99,10 @@ public:
 		MODRMBYTE		ModRm;
 		SIB				sib;
 		uint32			nOffset;
+		LITERAL128ID	literal128Id = 0;
 
 		bool			HasSib() const;
+		bool			NeedsExtendedByteAddress() const;
 		void			Write(Framework::CStream*);
 	};
 
@@ -110,10 +115,12 @@ public:
 
 	static CAddress							MakeRegisterAddress(REGISTER);
 	static CAddress							MakeXmmRegisterAddress(XMMREGISTER);
-	static CAddress							MakeByteRegisterAddress(REGISTER);
+	static CAddress							MakeByteRegisterAddress(BYTEREGISTER);
 	static CAddress							MakeIndRegAddress(REGISTER);
 	static CAddress							MakeIndRegOffAddress(REGISTER, uint32);
 	static CAddress							MakeBaseIndexScaleAddress(REGISTER, REGISTER, uint8);
+	static CAddress							MakeLiteral128Address(LITERAL128ID);
+	static CAddress							MakeBaseOffIndexScaleAddress(REGISTER, uint32, REGISTER, uint8);
 
 	static bool								HasByteRegister(REGISTER);
 	static BYTEREGISTER						GetByteRegister(REGISTER);
@@ -124,6 +131,9 @@ public:
 	LABEL									CreateLabel();
 	void									MarkLabel(LABEL, int32 = 0);
 	uint32									GetLabelOffset(LABEL) const;
+
+	LITERAL128ID							CreateLiteral128(const LITERAL128&);
+	void									ResolveLiteralReferences();
 
 	void									AdcEd(REGISTER, const CAddress&);
 	void									AdcId(const CAddress&, uint32);
@@ -228,7 +238,7 @@ public:
 	void									SubEq(REGISTER, const CAddress&);
 	void									SubId(const CAddress&, uint32);
 	void									SubIq(const CAddress&, uint64);
-	void									TestEb(REGISTER, const CAddress&);
+	void									TestEb(BYTEREGISTER, const CAddress&);
 	void									TestEd(REGISTER, const CAddress&);
 	void									TestEq(REGISTER, const CAddress&);
 	void									XorEd(REGISTER, const CAddress&);
@@ -335,6 +345,9 @@ public:
 	void									RsqrtssEd(XMMREGISTER, const CAddress&);
 	void									SqrtssEd(XMMREGISTER, const CAddress&);
 	void									CmpssEd(XMMREGISTER, const CAddress&, SSE_CMP_TYPE);
+	void									CmppsVo(XMMREGISTER, const CAddress&, SSE_CMP_TYPE);
+	void									CmpltpsVo(XMMREGISTER, const CAddress&);
+	void									CmpgtpsVo(XMMREGISTER, const CAddress&);
 	void									Cvtsi2ssEd(XMMREGISTER, const CAddress&);
 	void									Cvttss2siEd(REGISTER, const CAddress&);
 	void									Cvtdq2psVo(XMMREGISTER, const CAddress&);
@@ -348,6 +361,109 @@ public:
 	void									MulpsVo(XMMREGISTER, const CAddress&);
 	void									SubpsVo(XMMREGISTER, const CAddress&);
 	void									ShufpsVo(XMMREGISTER, const CAddress&, uint8);
+
+	//AVX
+	void									VmovdVo(XMMREGISTER, const CAddress&);
+	void									VmovdVo(const CAddress&, XMMREGISTER);
+
+	void									VmovssEd(XMMREGISTER, const CAddress&);
+	void									VmovssEd(const CAddress&, XMMREGISTER);
+
+	void									VaddssEd(XMMREGISTER, XMMREGISTER, const CAddress&);
+	void									VsubssEd(XMMREGISTER, XMMREGISTER, const CAddress&);
+	void									VmulssEd(XMMREGISTER, XMMREGISTER, const CAddress&);
+	void									VdivssEd(XMMREGISTER, XMMREGISTER, const CAddress&);
+	void									VmaxssEd(XMMREGISTER, XMMREGISTER, const CAddress&);
+	void									VminssEd(XMMREGISTER, XMMREGISTER, const CAddress&);
+	
+	void									VcmpssEd(XMMREGISTER, XMMREGISTER, const CAddress&, SSE_CMP_TYPE);
+
+	void									VsqrtssEd(XMMREGISTER, XMMREGISTER, const CAddress&);
+
+	void									Vcvtsi2ssEd(XMMREGISTER, const CAddress&);
+	void									Vcvttss2siEd(REGISTER, const CAddress&);
+
+	void									VmovdqaVo(XMMREGISTER, const CAddress&);
+	void									VmovdqaVo(const CAddress&, XMMREGISTER);
+	void									VmovdquVo(XMMREGISTER, const CAddress&);
+	void									VmovapsVo(XMMREGISTER, const CAddress&);
+	void									VmovapsVo(const CAddress&, XMMREGISTER);
+
+	void									VpaddbVo(XMMREGISTER, XMMREGISTER, const CAddress&);
+	void									VpaddwVo(XMMREGISTER, XMMREGISTER, const CAddress&);
+	void									VpadddVo(XMMREGISTER, XMMREGISTER, const CAddress&);
+
+	void									VpaddsbVo(XMMREGISTER, XMMREGISTER, const CAddress&);
+	void									VpaddswVo(XMMREGISTER, XMMREGISTER, const CAddress&);
+
+	void									VpaddusbVo(XMMREGISTER, XMMREGISTER, const CAddress&);
+	void									VpadduswVo(XMMREGISTER, XMMREGISTER, const CAddress&);
+
+	void									VpsubbVo(XMMREGISTER, XMMREGISTER, const CAddress&);
+	void									VpsubwVo(XMMREGISTER, XMMREGISTER, const CAddress&);
+	void									VpsubdVo(XMMREGISTER, XMMREGISTER, const CAddress&);
+
+	void									VpsubswVo(XMMREGISTER, XMMREGISTER, const CAddress&);
+	
+	void									VpsubusbVo(XMMREGISTER, XMMREGISTER, const CAddress&);
+	void									VpsubuswVo(XMMREGISTER, XMMREGISTER, const CAddress&);
+
+	void									VpandVo(XMMREGISTER, XMMREGISTER, const CAddress&);
+	void									VporVo(XMMREGISTER, XMMREGISTER, const CAddress&);
+	void									VpxorVo(XMMREGISTER, XMMREGISTER, const CAddress&);
+
+	void									VpsllwVo(XMMREGISTER, XMMREGISTER, uint8);
+	void									VpsrlwVo(XMMREGISTER, XMMREGISTER, uint8);
+	void									VpsrawVo(XMMREGISTER, XMMREGISTER, uint8);
+
+	void									VpslldVo(XMMREGISTER, XMMREGISTER, uint8);
+	void									VpsrldVo(XMMREGISTER, XMMREGISTER, uint8);
+	void									VpsradVo(XMMREGISTER, XMMREGISTER, uint8);
+
+	void									VpcmpeqbVo(XMMREGISTER, XMMREGISTER, const CAddress&);
+	void									VpcmpeqwVo(XMMREGISTER, XMMREGISTER, const CAddress&);
+	void									VpcmpeqdVo(XMMREGISTER, XMMREGISTER, const CAddress&);
+
+	void									VpcmpgtbVo(XMMREGISTER, XMMREGISTER, const CAddress&);
+	void									VpcmpgtwVo(XMMREGISTER, XMMREGISTER, const CAddress&);
+	void									VpcmpgtdVo(XMMREGISTER, XMMREGISTER, const CAddress&);
+
+	void									VpmaxswVo(XMMREGISTER, XMMREGISTER, const CAddress&);
+	void									VpmaxsdVo(XMMREGISTER, XMMREGISTER, const CAddress&);
+	void									VpminswVo(XMMREGISTER, XMMREGISTER, const CAddress&);
+	void									VpminsdVo(XMMREGISTER, XMMREGISTER, const CAddress&);
+
+	void									VpackssdwVo(XMMREGISTER, XMMREGISTER, const CAddress&);
+	void									VpackuswbVo(XMMREGISTER, XMMREGISTER, const CAddress&);
+
+	void									VpunpcklbwVo(XMMREGISTER, XMMREGISTER, const CAddress&);
+	void									VpunpcklwdVo(XMMREGISTER, XMMREGISTER, const CAddress&);
+	void									VpunpckldqVo(XMMREGISTER, XMMREGISTER, const CAddress&);
+	void									VpunpckhbwVo(XMMREGISTER, XMMREGISTER, const CAddress&);
+	void									VpunpckhwdVo(XMMREGISTER, XMMREGISTER, const CAddress&);
+	void									VpunpckhdqVo(XMMREGISTER, XMMREGISTER, const CAddress&);
+
+	void									VpshufbVo(XMMREGISTER, XMMREGISTER, const CAddress&);
+	void									VpmovmskbVo(REGISTER, XMMREGISTER);
+
+	void									VaddpsVo(XMMREGISTER, XMMREGISTER, const CAddress&);
+	void									VsubpsVo(XMMREGISTER, XMMREGISTER, const CAddress&);
+	void									VmulpsVo(XMMREGISTER, XMMREGISTER, const CAddress&);
+	void									VdivpsVo(XMMREGISTER, XMMREGISTER, const CAddress&);
+
+	void									VcmpltpsVo(XMMREGISTER, XMMREGISTER, const CAddress&);
+	void									VcmpgtpsVo(XMMREGISTER, XMMREGISTER, const CAddress&);
+
+	void									VminpsVo(XMMREGISTER, XMMREGISTER, const CAddress&);
+	void									VmaxpsVo(XMMREGISTER, XMMREGISTER, const CAddress&);
+
+	void									Vcvtdq2psVo(XMMREGISTER, const CAddress&);
+	void									Vcvttps2dqVo(XMMREGISTER, const CAddress&);
+
+	void									VcmppsVo(XMMREGISTER, XMMREGISTER, const CAddress&, SSE_CMP_TYPE);
+
+	void									VblendpsVo(XMMREGISTER, XMMREGISTER, const CAddress&, uint8);
+	void									VshufpsVo(XMMREGISTER, XMMREGISTER, const CAddress&, uint8);
 
 private:
 	enum JMP_TYPE
@@ -380,6 +496,16 @@ private:
 		JMP_FAR
 	};
 
+	enum VEX_OPCODE_MAP : uint8
+	{
+		VEX_OPCODE_MAP_NONE = 0x01,
+		VEX_OPCODE_MAP_66 = 0x11,
+		VEX_OPCODE_MAP_66_38 = 0x12,
+		VEX_OPCODE_MAP_66_3A = 0x13,
+		VEX_OPCODE_MAP_F3 = 0x21,
+		VEX_OPCODE_MAP_F2 = 0x31
+	};
+
 	struct LABELREF
 	{
 		LABELREF()
@@ -399,6 +525,13 @@ private:
 
 	typedef std::vector<LABELREF> LabelRefArray;
 
+	struct LITERAL128REF
+	{
+		uint32 offset = 0;
+		LITERAL128 value = LITERAL128(0, 0);
+	};
+	typedef std::map<LITERAL128ID, LITERAL128REF> Literal128Refs;
+
 	struct LABELINFO
 	{
 		LABELINFO()
@@ -413,6 +546,7 @@ private:
 		uint32			size;
 		uint32			projectedStart;
 		LabelRefArray	labelRefs;
+		Literal128Refs	literal128Refs;
 	};
 
 	typedef std::map<LABEL, LABELINFO> LabelMap;
@@ -421,9 +555,12 @@ private:
 
 	void									WriteRexByte(bool, const CAddress&);
 	void									WriteRexByte(bool, const CAddress&, REGISTER&, bool = false);
-	void									WriteEvOp(uint8, uint8, bool, const CAddress&);
+	void									WriteVex(VEX_OPCODE_MAP, XMMREGISTER&, XMMREGISTER, const CAddress&);
+	void									WriteEbOp_0F(uint8, uint8, const CAddress&);
 	void									WriteEbGbOp(uint8, bool, const CAddress&, REGISTER);
 	void									WriteEbGbOp(uint8, bool, const CAddress&, BYTEREGISTER);
+	void									WriteEbGvOp0F(uint8, bool, const CAddress&, REGISTER);
+	void									WriteEvOp(uint8, uint8, bool, const CAddress&);
 	void									WriteEvGvOp(uint8, bool, const CAddress&, REGISTER);
 	void									WriteEvGvOp0F(uint8, bool, const CAddress&, REGISTER);
 	void									WriteEvIb(uint8, const CAddress&, uint8);
@@ -437,6 +574,8 @@ private:
 	void									WriteEdVdOp_66_0F_3A(uint8, const CAddress&, XMMREGISTER);
 	void									WriteEdVdOp_F3_0F(uint8, const CAddress&, XMMREGISTER);
 	void									WriteVrOp_66_0F(uint8, uint8, XMMREGISTER);
+	void									WriteVexVoOp(VEX_OPCODE_MAP, uint8, XMMREGISTER, XMMREGISTER, const CAddress&);
+	void									WriteVexShiftVoOp(uint8, uint8, XMMREGISTER, XMMREGISTER, uint8);
 	void									WriteStOp(uint8, uint8, uint8);
 
 	void									CreateLabelReference(LABEL, JMP_TYPE);
@@ -454,6 +593,7 @@ private:
 	LabelMap								m_labels;
 	LabelArray								m_labelOrder;
 	LABEL									m_nextLabelId = 1;
+	LITERAL128ID							m_nextLiteral128Id = 1;
 	LABELINFO*								m_currentLabel = nullptr;
 	Framework::CStream*						m_outputStream = nullptr;
 	Framework::CMemStream					m_tmpStream;

@@ -2,6 +2,8 @@
 
 using namespace Jitter;
 
+const LITERAL128 CCodeGen_x86::g_makeSzShufflePattern = { 0x00020406080A0C0E, 0x8080808080808080 };
+
 CX86Assembler::CAddress CCodeGen_x86::MakeRelative128SymbolElementAddress(CSymbol* symbol, unsigned int elementIdx)
 {
 	assert(symbol->m_type == SYM_RELATIVE128);
@@ -255,26 +257,6 @@ void CCodeGen_x86::Emit_Md_SingleOp_MemVar(const STATEMENT& statement)
 	m_assembler.MovapsVo(MakeMemory128SymbolAddress(dst), resultRegister);
 }
 
-template <typename MDOPFLAG>
-void CCodeGen_x86::Emit_Md_GetFlag_RegVar(const STATEMENT& statement)
-{
-	auto dst = statement.dst->GetSymbol().get();
-	auto src1 = statement.src1->GetSymbol().get();
-
-	((*this).*(MDOPFLAG::OpEd()))(m_registers[dst->m_valueLow], MakeVariable128SymbolAddress(src1));
-}
-
-template <typename MDOPFLAG>
-void CCodeGen_x86::Emit_Md_GetFlag_MemVar(const STATEMENT& statement)
-{
-	auto dst = statement.dst->GetSymbol().get();
-	auto src1 = statement.src1->GetSymbol().get();
-
-	auto tmpRegister = CX86Assembler::rAX;
-	((*this).*(MDOPFLAG::OpEd()))(tmpRegister, MakeVariable128SymbolAddress(src1));
-	m_assembler.MovGd(MakeMemorySymbolAddress(dst), tmpRegister);
-}
-
 void CCodeGen_x86::Emit_Md_AddSSW_VarVarVar(const STATEMENT& statement)
 {
 	auto dst = statement.dst->GetSymbol().get();
@@ -332,7 +314,7 @@ void CCodeGen_x86::Emit_Md_AddSSW_VarVarVar(const STATEMENT& statement)
 	m_assembler.PxorVo(uyRegister, CX86Assembler::MakeXmmRegisterAddress(cstRegister));
 
 	//cst = ux ^ uy (reloading uy from src2 because we don't have any registers available)
-	m_assembler.MovapsVo(cstRegister ,CX86Assembler::MakeXmmRegisterAddress(uxRegister));
+	m_assembler.MovapsVo(cstRegister, CX86Assembler::MakeXmmRegisterAddress(uxRegister));
 	m_assembler.PxorVo(cstRegister, MakeVariable128SymbolAddress(src2));
 
 	//uy = ((ux ^ uy) | ~(uy ^ res)) >> 31; (signed operation)
@@ -411,7 +393,7 @@ void CCodeGen_x86::Emit_Md_SubSSW_VarVarVar(const STATEMENT& statement)
 	m_assembler.PxorVo(uyRegister, CX86Assembler::MakeXmmRegisterAddress(resRegister));
 
 	//cst = ux ^ uy (reloading uy from src2 because we don't have any registers available)
-	m_assembler.MovdqaVo(cstRegister ,CX86Assembler::MakeXmmRegisterAddress(uxRegister));
+	m_assembler.MovdqaVo(cstRegister, CX86Assembler::MakeXmmRegisterAddress(uxRegister));
 	m_assembler.PxorVo(cstRegister, MakeVariable128SymbolAddress(src2));
 
 	//uy = ((ux ^ uy) & (ux ^ res)) >> 31; (signed operation)
@@ -742,106 +724,60 @@ void CCodeGen_x86::Emit_Md_Not(CX86Assembler::XMMREGISTER dstRegister)
 	m_assembler.PxorVo(dstRegister, CX86Assembler::MakeXmmRegisterAddress(cstRegister));
 }
 
-void CCodeGen_x86::Emit_Md_IsNegative(CX86Assembler::REGISTER dstRegister, const CX86Assembler::CAddress& srcAddress)
+void CCodeGen_x86::Emit_Md_MakeSz(CX86Assembler::XMMREGISTER dstRegister, const CX86Assembler::CAddress& srcAddress)
 {
-	auto valueRegister = CX86Assembler::xMM0;
-	auto tmpFlagRegister = CX86Assembler::rDX;
-	assert(dstRegister != tmpFlagRegister);
+	auto zeroRegister = CX86Assembler::xMM1;
+	assert(dstRegister != zeroRegister);
+	
+	m_assembler.MovdqaVo(dstRegister, srcAddress);
+	m_assembler.PsradVo(dstRegister, 31);
+	
+	m_assembler.PxorVo(zeroRegister, CX86Assembler::MakeXmmRegisterAddress(zeroRegister));
+	m_assembler.CmppsVo(zeroRegister, srcAddress, CX86Assembler::SSE_CMP_EQ);
+	
+	m_assembler.PackssdwVo(dstRegister, CX86Assembler::MakeXmmRegisterAddress(zeroRegister));
+}
 
-	//valueRegister = [srcAddress]
-	m_assembler.MovapsVo(valueRegister, srcAddress);
-
-	//----- Generate isNegative
-	//valueRegister >>= 31 (s-extended)
-	m_assembler.PsradVo(valueRegister, 31);
+void CCodeGen_x86::Emit_Md_MakeSz_VarVar(const STATEMENT& statement)
+{
+	auto dst = statement.dst->GetSymbol().get();
+	auto src1 = statement.src1->GetSymbol().get();
+	
+	auto szRegister = CX86Assembler::xMM0;
+	auto tmpFlagRegister = CX86Assembler::rAX;
+	auto dstRegister = PrepareSymbolRegisterDef(dst, CX86Assembler::rDX);
+	
+	Emit_Md_MakeSz(szRegister, MakeVariable128SymbolAddress(src1));
 
 	//Extract bits
-	m_assembler.PmovmskbVo(tmpFlagRegister, valueRegister);
-	
+	m_assembler.PmovmskbVo(tmpFlagRegister, szRegister);
+
 	//Generate bit field
 	m_assembler.XorEd(dstRegister, CX86Assembler::MakeRegisterAddress(dstRegister));
-	for(unsigned int i = 0; i < 4; i++)
+	for(unsigned int i = 0; i < 8; i++)
 	{
-		m_assembler.ShrEd(CX86Assembler::MakeRegisterAddress(tmpFlagRegister), 4);
+		m_assembler.ShrEd(CX86Assembler::MakeRegisterAddress(tmpFlagRegister), 2);
 		m_assembler.RclEd(CX86Assembler::MakeRegisterAddress(dstRegister), 1);
 	}
+
+	CommitSymbolRegister(dst, dstRegister);
 }
 
-void CCodeGen_x86::Emit_Md_IsZero(CX86Assembler::REGISTER dstRegister, const CX86Assembler::CAddress& srcAddress)
+void CCodeGen_x86::Emit_Md_MakeSz_Ssse3_VarVar(const STATEMENT& statement)
 {
-	auto valueRegister = CX86Assembler::xMM0;
-	auto zeroRegister = CX86Assembler::xMM1;
-	auto tmpFlagRegister = CX86Assembler::rDX;
-	assert(dstRegister != tmpFlagRegister);
-
-	//Get value - And with 0x7FFFFFFF to remove sign bit
-	m_assembler.PcmpeqdVo(valueRegister, CX86Assembler::MakeXmmRegisterAddress(valueRegister));
-	m_assembler.PsrldVo(valueRegister, 1);
-	m_assembler.PandVo(valueRegister, srcAddress);
-
-	//Generate zero and compare
-	m_assembler.PandnVo(zeroRegister, CX86Assembler::MakeXmmRegisterAddress(zeroRegister));
-	m_assembler.PcmpeqdVo(valueRegister, CX86Assembler::MakeXmmRegisterAddress(zeroRegister));
-
-	//Extract bits
-	m_assembler.PmovmskbVo(tmpFlagRegister, valueRegister);
+	auto dst = statement.dst->GetSymbol().get();
+	auto src1 = statement.src1->GetSymbol().get();
 	
-	//Generate bit field
-	m_assembler.XorEd(dstRegister, CX86Assembler::MakeRegisterAddress(dstRegister));
-	for(unsigned int i = 0; i < 4; i++)
-	{
-		m_assembler.ShrEd(CX86Assembler::MakeRegisterAddress(tmpFlagRegister), 4);
-		m_assembler.RclEd(CX86Assembler::MakeRegisterAddress(dstRegister), 1);
-	}
-}
-
-void CCodeGen_x86::Emit_Md_IsNegative_Ssse3(CX86Assembler::REGISTER dstRegister, const CX86Assembler::CAddress& srcAddress)
-{
-	auto valueRegister = CX86Assembler::xMM0;
-	auto shuffleSelectRegister = CX86Assembler::xMM3;
-	auto tmpFlagRegister = CX86Assembler::rDX;
-
-	assert(dstRegister != tmpFlagRegister);
-
-	//valueRegister = [srcAddress]
-	m_assembler.MovdqaVo(valueRegister, srcAddress);
-
-	//----- Generate isNegative
-	//valueRegister >>= 31 (s-extended)
-	m_assembler.PsradVo(valueRegister, 31);
-
+	auto szRegister = CX86Assembler::xMM0;
+	auto dstRegister = PrepareSymbolRegisterDef(dst, CX86Assembler::rDX);
+	
+	Emit_Md_MakeSz(szRegister, MakeVariable128SymbolAddress(src1));
+	
 	//Extract bits
-	m_assembler.MovId(tmpFlagRegister, 0x03070B0F);
-	m_assembler.MovdVo(shuffleSelectRegister, CX86Assembler::MakeRegisterAddress(tmpFlagRegister));
-	m_assembler.PshufbVo(valueRegister, CX86Assembler::MakeXmmRegisterAddress(shuffleSelectRegister));
-	m_assembler.PmovmskbVo(dstRegister, valueRegister);
-	m_assembler.AndId(CX86Assembler::MakeRegisterAddress(dstRegister), 0x0F);
-}
-
-void CCodeGen_x86::Emit_Md_IsZero_Ssse3(CX86Assembler::REGISTER dstRegister, const CX86Assembler::CAddress& srcAddress)
-{
-	auto valueRegister = CX86Assembler::xMM0;
-	auto zeroRegister = CX86Assembler::xMM1;
-	auto shuffleSelectRegister = CX86Assembler::xMM2;
-	auto tmpFlagRegister = CX86Assembler::rDX;
-
-	assert(dstRegister != tmpFlagRegister);
-
-	//Get value - And with 0x7FFFFFFF to remove sign bit
-	m_assembler.PcmpeqdVo(valueRegister, CX86Assembler::MakeXmmRegisterAddress(valueRegister));
-	m_assembler.PsrldVo(valueRegister, 1);
-	m_assembler.PandVo(valueRegister, srcAddress);
-
-	//Generate zero and compare
-	m_assembler.PandnVo(zeroRegister, CX86Assembler::MakeXmmRegisterAddress(zeroRegister));
-	m_assembler.PcmpeqdVo(valueRegister, CX86Assembler::MakeXmmRegisterAddress(zeroRegister));
-
-	//Extract bits
-	m_assembler.MovId(tmpFlagRegister, 0x03070B0F);
-	m_assembler.MovdVo(shuffleSelectRegister, CX86Assembler::MakeRegisterAddress(tmpFlagRegister));
-	m_assembler.PshufbVo(valueRegister, CX86Assembler::MakeXmmRegisterAddress(shuffleSelectRegister));
-	m_assembler.PmovmskbVo(dstRegister, valueRegister);
-	m_assembler.AndId(CX86Assembler::MakeRegisterAddress(dstRegister), 0x0F);
+	m_assembler.PshufbVo(szRegister, MakeConstant128Address(g_makeSzShufflePattern));
+	m_assembler.PmovmskbVo(dstRegister, szRegister);
+	
+	CommitSymbolRegister(dst, dstRegister);
 }
 
 void CCodeGen_x86::Emit_Md_Expand_RegReg(const STATEMENT& statement)
@@ -981,86 +917,86 @@ void CCodeGen_x86::Emit_MergeTo256_MemVarVar(const STATEMENT& statement)
 }
 
 #define MD_CONST_MATCHERS_SHIFT(MDOP_CST, MDOP, SAMASK) \
-	{ MDOP_CST,				MATCH_REGISTER128,			MATCH_VARIABLE128,			MATCH_CONSTANT,			&CCodeGen_x86::Emit_Md_Shift_RegVarCst<MDOP, SAMASK>	}, \
-	{ MDOP_CST,				MATCH_MEMORY128,			MATCH_VARIABLE128,			MATCH_CONSTANT,			&CCodeGen_x86::Emit_Md_Shift_MemVarCst<MDOP, SAMASK>	},
+	{ MDOP_CST, MATCH_REGISTER128, MATCH_VARIABLE128, MATCH_CONSTANT, MATCH_NIL, &CCodeGen_x86::Emit_Md_Shift_RegVarCst<MDOP, SAMASK> }, \
+	{ MDOP_CST, MATCH_MEMORY128,   MATCH_VARIABLE128, MATCH_CONSTANT, MATCH_NIL, &CCodeGen_x86::Emit_Md_Shift_MemVarCst<MDOP, SAMASK> },
 
 #define MD_CONST_MATCHERS_2OPS(MDOP_CST, MDOP) \
-	{ MDOP_CST,				MATCH_REGISTER128,			MATCH_VARIABLE128,			MATCH_NIL,				&CCodeGen_x86::Emit_Md_RegVar<MDOP>						}, \
-	{ MDOP_CST,				MATCH_MEMORY128,			MATCH_VARIABLE128,			MATCH_NIL,				&CCodeGen_x86::Emit_Md_MemVar<MDOP>						},
+	{ MDOP_CST, MATCH_REGISTER128, MATCH_VARIABLE128, MATCH_NIL, MATCH_NIL, &CCodeGen_x86::Emit_Md_RegVar<MDOP> }, \
+	{ MDOP_CST, MATCH_MEMORY128,   MATCH_VARIABLE128, MATCH_NIL, MATCH_NIL, &CCodeGen_x86::Emit_Md_MemVar<MDOP> },
 
 #define MD_CONST_MATCHERS_3OPS(MDOP_CST, MDOP) \
-	{ MDOP_CST,				MATCH_REGISTER128,			MATCH_REGISTER128,			MATCH_REGISTER128,		&CCodeGen_x86::Emit_Md_RegRegReg<MDOP>					}, \
-	{ MDOP_CST,				MATCH_REGISTER128,			MATCH_MEMORY128,			MATCH_REGISTER128,		&CCodeGen_x86::Emit_Md_RegMemReg<MDOP>					}, \
-	{ MDOP_CST,				MATCH_REGISTER128,			MATCH_VARIABLE128,			MATCH_VARIABLE128,		&CCodeGen_x86::Emit_Md_RegVarVar<MDOP>					}, \
-	{ MDOP_CST,				MATCH_MEMORY128,			MATCH_VARIABLE128,			MATCH_VARIABLE128,		&CCodeGen_x86::Emit_Md_MemVarVar<MDOP>					},
+	{ MDOP_CST, MATCH_REGISTER128, MATCH_REGISTER128, MATCH_REGISTER128, MATCH_NIL, &CCodeGen_x86::Emit_Md_RegRegReg<MDOP> }, \
+	{ MDOP_CST, MATCH_REGISTER128, MATCH_MEMORY128,   MATCH_REGISTER128, MATCH_NIL, &CCodeGen_x86::Emit_Md_RegMemReg<MDOP> }, \
+	{ MDOP_CST, MATCH_REGISTER128, MATCH_VARIABLE128, MATCH_VARIABLE128, MATCH_NIL, &CCodeGen_x86::Emit_Md_RegVarVar<MDOP> }, \
+	{ MDOP_CST, MATCH_MEMORY128,   MATCH_VARIABLE128, MATCH_VARIABLE128, MATCH_NIL, &CCodeGen_x86::Emit_Md_MemVarVar<MDOP> },
 
 #define MD_CONST_MATCHERS_3OPS_REV(MDOP_CST, MDOP) \
-	{ MDOP_CST,				MATCH_VARIABLE128,			MATCH_VARIABLE128,			MATCH_VARIABLE128,		&CCodeGen_x86::Emit_Md_VarVarVarRev<MDOP>				},
+	{ MDOP_CST, MATCH_VARIABLE128, MATCH_VARIABLE128, MATCH_VARIABLE128, MATCH_NIL, &CCodeGen_x86::Emit_Md_VarVarVarRev<MDOP> },
 
 #define MD_CONST_MATCHERS_SINGLEOP(MDOP_CST, MDOP) \
-	{ MDOP_CST,				MATCH_REGISTER128,			MATCH_VARIABLE128,			MATCH_NIL,				&CCodeGen_x86::Emit_Md_SingleOp_RegVar<MDOP>			}, \
-	{ MDOP_CST,				MATCH_MEMORY128,			MATCH_VARIABLE128,			MATCH_NIL,				&CCodeGen_x86::Emit_Md_SingleOp_MemVar<MDOP>			},
+	{ MDOP_CST, MATCH_REGISTER128, MATCH_VARIABLE128, MATCH_NIL, MATCH_NIL, &CCodeGen_x86::Emit_Md_SingleOp_RegVar<MDOP> }, \
+	{ MDOP_CST, MATCH_MEMORY128,   MATCH_VARIABLE128, MATCH_NIL, MATCH_NIL, &CCodeGen_x86::Emit_Md_SingleOp_MemVar<MDOP> },
 
 CCodeGen_x86::CONSTMATCHER CCodeGen_x86::g_mdConstMatchers[] = 
 {
-	MD_CONST_MATCHERS_3OPS(OP_MD_ADD_B,		MDOP_ADDB)
-	MD_CONST_MATCHERS_3OPS(OP_MD_ADD_H,		MDOP_ADDH)
-	MD_CONST_MATCHERS_3OPS(OP_MD_ADD_W,		MDOP_ADDW)
+	MD_CONST_MATCHERS_3OPS(OP_MD_ADD_B, MDOP_ADDB)
+	MD_CONST_MATCHERS_3OPS(OP_MD_ADD_H, MDOP_ADDH)
+	MD_CONST_MATCHERS_3OPS(OP_MD_ADD_W, MDOP_ADDW)
 
-	MD_CONST_MATCHERS_3OPS(OP_MD_ADDSS_B,	MDOP_ADDSSB)
-	MD_CONST_MATCHERS_3OPS(OP_MD_ADDSS_H,	MDOP_ADDSSH)
-	{ OP_MD_ADDSS_W,			MATCH_VARIABLE128,			MATCH_VARIABLE128,			MATCH_VARIABLE128,		&CCodeGen_x86::Emit_Md_AddSSW_VarVarVar						},
+	MD_CONST_MATCHERS_3OPS(OP_MD_ADDSS_B, MDOP_ADDSSB)
+	MD_CONST_MATCHERS_3OPS(OP_MD_ADDSS_H, MDOP_ADDSSH)
+	{ OP_MD_ADDSS_W, MATCH_VARIABLE128, MATCH_VARIABLE128, MATCH_VARIABLE128, MATCH_NIL, &CCodeGen_x86::Emit_Md_AddSSW_VarVarVar },
 
-	MD_CONST_MATCHERS_3OPS(OP_MD_ADDUS_B,	MDOP_ADDUSB)
-	MD_CONST_MATCHERS_3OPS(OP_MD_ADDUS_H,	MDOP_ADDUSH)
-	{ OP_MD_ADDUS_W,			MATCH_VARIABLE128,			MATCH_VARIABLE128,			MATCH_VARIABLE128,		&CCodeGen_x86::Emit_Md_AddUSW_VarVarVar						},
+	MD_CONST_MATCHERS_3OPS(OP_MD_ADDUS_B, MDOP_ADDUSB)
+	MD_CONST_MATCHERS_3OPS(OP_MD_ADDUS_H, MDOP_ADDUSH)
+	{ OP_MD_ADDUS_W, MATCH_VARIABLE128, MATCH_VARIABLE128, MATCH_VARIABLE128, MATCH_NIL, &CCodeGen_x86::Emit_Md_AddUSW_VarVarVar },
 
-	MD_CONST_MATCHERS_3OPS(OP_MD_SUB_B,		MDOP_SUBB)
-	MD_CONST_MATCHERS_3OPS(OP_MD_SUB_H,		MDOP_SUBH)
-	MD_CONST_MATCHERS_3OPS(OP_MD_SUB_W,		MDOP_SUBW)
+	MD_CONST_MATCHERS_3OPS(OP_MD_SUB_B, MDOP_SUBB)
+	MD_CONST_MATCHERS_3OPS(OP_MD_SUB_H, MDOP_SUBH)
+	MD_CONST_MATCHERS_3OPS(OP_MD_SUB_W, MDOP_SUBW)
 
-	MD_CONST_MATCHERS_3OPS(OP_MD_SUBSS_H,	MDOP_SUBSSH)
-	{ OP_MD_SUBSS_W,			MATCH_VARIABLE128,			MATCH_VARIABLE128,			MATCH_VARIABLE128,		&CCodeGen_x86::Emit_Md_SubSSW_VarVarVar						},
+	MD_CONST_MATCHERS_3OPS(OP_MD_SUBSS_H, MDOP_SUBSSH)
+	{ OP_MD_SUBSS_W, MATCH_VARIABLE128, MATCH_VARIABLE128, MATCH_VARIABLE128, MATCH_NIL, &CCodeGen_x86::Emit_Md_SubSSW_VarVarVar },
 
-	MD_CONST_MATCHERS_3OPS(OP_MD_SUBUS_B,	MDOP_SUBUSB)
-	MD_CONST_MATCHERS_3OPS(OP_MD_SUBUS_H,	MDOP_SUBUSH)
-	{ OP_MD_SUBUS_W,			MATCH_VARIABLE128,			MATCH_VARIABLE128,			MATCH_VARIABLE128,		&CCodeGen_x86::Emit_Md_SubUSW_VarVarVar						},
+	MD_CONST_MATCHERS_3OPS(OP_MD_SUBUS_B, MDOP_SUBUSB)
+	MD_CONST_MATCHERS_3OPS(OP_MD_SUBUS_H, MDOP_SUBUSH)
+	{ OP_MD_SUBUS_W, MATCH_VARIABLE128, MATCH_VARIABLE128, MATCH_VARIABLE128, MATCH_NIL, &CCodeGen_x86::Emit_Md_SubUSW_VarVarVar },
 
-	MD_CONST_MATCHERS_3OPS(OP_MD_CMPEQ_B,	MDOP_CMPEQB)
-	MD_CONST_MATCHERS_3OPS(OP_MD_CMPEQ_H,	MDOP_CMPEQH)
-	MD_CONST_MATCHERS_3OPS(OP_MD_CMPEQ_W,	MDOP_CMPEQW)
-	MD_CONST_MATCHERS_3OPS(OP_MD_CMPGT_B,	MDOP_CMPGTB)
-	MD_CONST_MATCHERS_3OPS(OP_MD_CMPGT_H,	MDOP_CMPGTH)
-	MD_CONST_MATCHERS_3OPS(OP_MD_CMPGT_W,	MDOP_CMPGTW)
+	MD_CONST_MATCHERS_3OPS(OP_MD_CMPEQ_B, MDOP_CMPEQB)
+	MD_CONST_MATCHERS_3OPS(OP_MD_CMPEQ_H, MDOP_CMPEQH)
+	MD_CONST_MATCHERS_3OPS(OP_MD_CMPEQ_W, MDOP_CMPEQW)
+	MD_CONST_MATCHERS_3OPS(OP_MD_CMPGT_B, MDOP_CMPGTB)
+	MD_CONST_MATCHERS_3OPS(OP_MD_CMPGT_H, MDOP_CMPGTH)
+	MD_CONST_MATCHERS_3OPS(OP_MD_CMPGT_W, MDOP_CMPGTW)
 
-	MD_CONST_MATCHERS_3OPS(OP_MD_MIN_H,		MDOP_MINH)
+	MD_CONST_MATCHERS_3OPS(OP_MD_MIN_H, MDOP_MINH)
 
-	MD_CONST_MATCHERS_3OPS(OP_MD_MAX_H,		MDOP_MAXH)
+	MD_CONST_MATCHERS_3OPS(OP_MD_MAX_H, MDOP_MAXH)
 
-	MD_CONST_MATCHERS_3OPS(OP_MD_AND,		MDOP_AND)
-	MD_CONST_MATCHERS_3OPS(OP_MD_OR,		MDOP_OR)
-	MD_CONST_MATCHERS_3OPS(OP_MD_XOR,		MDOP_XOR)
+	MD_CONST_MATCHERS_3OPS(OP_MD_AND, MDOP_AND)
+	MD_CONST_MATCHERS_3OPS(OP_MD_OR,  MDOP_OR)
+	MD_CONST_MATCHERS_3OPS(OP_MD_XOR, MDOP_XOR)
 
-	MD_CONST_MATCHERS_SHIFT(OP_MD_SRLH,		MDOP_SRLH, 0x0F)
-	MD_CONST_MATCHERS_SHIFT(OP_MD_SRAH,		MDOP_SRAH, 0x0F)
-	MD_CONST_MATCHERS_SHIFT(OP_MD_SLLH,		MDOP_SLLH, 0x0F)
+	MD_CONST_MATCHERS_SHIFT(OP_MD_SRLH, MDOP_SRLH, 0x0F)
+	MD_CONST_MATCHERS_SHIFT(OP_MD_SRAH, MDOP_SRAH, 0x0F)
+	MD_CONST_MATCHERS_SHIFT(OP_MD_SLLH, MDOP_SLLH, 0x0F)
 
-	MD_CONST_MATCHERS_SHIFT(OP_MD_SRLW,		MDOP_SRLW, 0x1F)
-	MD_CONST_MATCHERS_SHIFT(OP_MD_SRAW,		MDOP_SRAW, 0x1F)
-	MD_CONST_MATCHERS_SHIFT(OP_MD_SLLW,		MDOP_SLLW, 0x1F)
+	MD_CONST_MATCHERS_SHIFT(OP_MD_SRLW, MDOP_SRLW, 0x1F)
+	MD_CONST_MATCHERS_SHIFT(OP_MD_SRAW, MDOP_SRAW, 0x1F)
+	MD_CONST_MATCHERS_SHIFT(OP_MD_SLLW, MDOP_SLLW, 0x1F)
 
-	{ OP_MD_SRL256,				MATCH_VARIABLE128,			MATCH_MEMORY256,			MATCH_VARIABLE,			&CCodeGen_x86::Emit_Md_Srl256_VarMemVar						},
-	{ OP_MD_SRL256,				MATCH_VARIABLE128,			MATCH_MEMORY256,			MATCH_CONSTANT,			&CCodeGen_x86::Emit_Md_Srl256_VarMemCst						},
+	{ OP_MD_SRL256, MATCH_VARIABLE128, MATCH_MEMORY256, MATCH_VARIABLE, MATCH_NIL, &CCodeGen_x86::Emit_Md_Srl256_VarMemVar },
+	{ OP_MD_SRL256, MATCH_VARIABLE128, MATCH_MEMORY256, MATCH_CONSTANT, MATCH_NIL, &CCodeGen_x86::Emit_Md_Srl256_VarMemCst },
 
-	{ OP_MD_EXPAND,				MATCH_REGISTER128,			MATCH_REGISTER,				MATCH_NIL,				&CCodeGen_x86::Emit_Md_Expand_RegReg						},
-	{ OP_MD_EXPAND,				MATCH_REGISTER128,			MATCH_MEMORY,				MATCH_NIL,				&CCodeGen_x86::Emit_Md_Expand_RegMem						},
-	{ OP_MD_EXPAND,				MATCH_REGISTER128,			MATCH_CONSTANT,				MATCH_NIL,				&CCodeGen_x86::Emit_Md_Expand_RegCst						},
-	{ OP_MD_EXPAND,				MATCH_MEMORY128,			MATCH_REGISTER,				MATCH_NIL,				&CCodeGen_x86::Emit_Md_Expand_MemReg						},
-	{ OP_MD_EXPAND,				MATCH_MEMORY128,			MATCH_MEMORY,				MATCH_NIL,				&CCodeGen_x86::Emit_Md_Expand_MemMem						},
-	{ OP_MD_EXPAND,				MATCH_MEMORY128,			MATCH_CONSTANT,				MATCH_NIL,				&CCodeGen_x86::Emit_Md_Expand_MemCst						},
+	{ OP_MD_EXPAND, MATCH_REGISTER128, MATCH_REGISTER, MATCH_NIL, MATCH_NIL, &CCodeGen_x86::Emit_Md_Expand_RegReg },
+	{ OP_MD_EXPAND, MATCH_REGISTER128, MATCH_MEMORY,   MATCH_NIL, MATCH_NIL, &CCodeGen_x86::Emit_Md_Expand_RegMem },
+	{ OP_MD_EXPAND, MATCH_REGISTER128, MATCH_CONSTANT, MATCH_NIL, MATCH_NIL, &CCodeGen_x86::Emit_Md_Expand_RegCst },
+	{ OP_MD_EXPAND, MATCH_MEMORY128,   MATCH_REGISTER, MATCH_NIL, MATCH_NIL, &CCodeGen_x86::Emit_Md_Expand_MemReg },
+	{ OP_MD_EXPAND, MATCH_MEMORY128,   MATCH_MEMORY,   MATCH_NIL, MATCH_NIL, &CCodeGen_x86::Emit_Md_Expand_MemMem },
+	{ OP_MD_EXPAND, MATCH_MEMORY128,   MATCH_CONSTANT, MATCH_NIL, MATCH_NIL, &CCodeGen_x86::Emit_Md_Expand_MemCst },
 
-	{ OP_MD_PACK_HB,			MATCH_VARIABLE128,			MATCH_VARIABLE128,			MATCH_VARIABLE128,		&CCodeGen_x86::Emit_Md_PackHB_VarVarVar,					},
-	{ OP_MD_PACK_WH,			MATCH_VARIABLE128,			MATCH_VARIABLE128,			MATCH_VARIABLE128,		&CCodeGen_x86::Emit_Md_PackWH_VarVarVar,					},
+	{ OP_MD_PACK_HB, MATCH_VARIABLE128, MATCH_VARIABLE128, MATCH_VARIABLE128, MATCH_NIL, &CCodeGen_x86::Emit_Md_PackHB_VarVarVar },
+	{ OP_MD_PACK_WH, MATCH_VARIABLE128, MATCH_VARIABLE128, MATCH_VARIABLE128, MATCH_NIL, &CCodeGen_x86::Emit_Md_PackWH_VarVarVar },
 
 	MD_CONST_MATCHERS_3OPS_REV(OP_MD_UNPACK_LOWER_BH, MDOP_UNPACK_LOWER_BH)
 	MD_CONST_MATCHERS_3OPS_REV(OP_MD_UNPACK_LOWER_HW, MDOP_UNPACK_LOWER_HW)
@@ -1074,73 +1010,67 @@ CCodeGen_x86::CONSTMATCHER CCodeGen_x86::g_mdConstMatchers[] =
 	MD_CONST_MATCHERS_3OPS(OP_MD_SUB_S, MDOP_SUBS)
 	MD_CONST_MATCHERS_3OPS(OP_MD_MUL_S, MDOP_MULS)
 	MD_CONST_MATCHERS_3OPS(OP_MD_DIV_S, MDOP_DIVS)
+	MD_CONST_MATCHERS_3OPS(OP_MD_CMPLT_S, MDOP_CMPLTS)
+	MD_CONST_MATCHERS_3OPS(OP_MD_CMPGT_S, MDOP_CMPGTS)
 
 	MD_CONST_MATCHERS_3OPS(OP_MD_MIN_S, MDOP_MINS)
 	MD_CONST_MATCHERS_3OPS(OP_MD_MAX_S, MDOP_MAXS)
 
-	MD_CONST_MATCHERS_SINGLEOP(OP_MD_ABS_S,	MDOP_ABS)
-	MD_CONST_MATCHERS_SINGLEOP(OP_MD_NOT,	MDOP_NOT)
+	MD_CONST_MATCHERS_SINGLEOP(OP_MD_ABS_S, MDOP_ABS)
+	MD_CONST_MATCHERS_SINGLEOP(OP_MD_NOT,   MDOP_NOT)
 
-	MD_CONST_MATCHERS_2OPS(OP_MD_TOWORD_TRUNCATE,	MDOP_TOWORD_TRUNCATE)
-	MD_CONST_MATCHERS_2OPS(OP_MD_TOSINGLE,			MDOP_TOSINGLE)
+	MD_CONST_MATCHERS_2OPS(OP_MD_TOWORD_TRUNCATE, MDOP_TOWORD_TRUNCATE)
+	MD_CONST_MATCHERS_2OPS(OP_MD_TOSINGLE,        MDOP_TOSINGLE)
 
-	{ OP_MOV,					MATCH_REGISTER128,			MATCH_VARIABLE128,			MATCH_NIL,				&CCodeGen_x86::Emit_Md_Mov_RegVar,							},
-	{ OP_MOV,					MATCH_MEMORY128,			MATCH_REGISTER128,			MATCH_NIL,				&CCodeGen_x86::Emit_Md_Mov_MemReg							},
-	{ OP_MOV,					MATCH_MEMORY128,			MATCH_MEMORY128,			MATCH_NIL,				&CCodeGen_x86::Emit_Md_Mov_MemMem							},
+	{ OP_MOV, MATCH_REGISTER128, MATCH_VARIABLE128, MATCH_NIL, MATCH_NIL, &CCodeGen_x86::Emit_Md_Mov_RegVar },
+	{ OP_MOV, MATCH_MEMORY128,   MATCH_REGISTER128, MATCH_NIL, MATCH_NIL, &CCodeGen_x86::Emit_Md_Mov_MemReg },
+	{ OP_MOV, MATCH_MEMORY128,   MATCH_MEMORY128,   MATCH_NIL, MATCH_NIL, &CCodeGen_x86::Emit_Md_Mov_MemMem },
 
-	{ OP_MERGETO256,			MATCH_MEMORY256,			MATCH_VARIABLE128,			MATCH_VARIABLE128,		&CCodeGen_x86::Emit_MergeTo256_MemVarVar					},
+	{ OP_MERGETO256, MATCH_MEMORY256, MATCH_VARIABLE128, MATCH_VARIABLE128, MATCH_NIL, &CCodeGen_x86::Emit_MergeTo256_MemVarVar },
 
-	{ OP_MOV,					MATCH_NIL,					MATCH_NIL,					MATCH_NIL,				NULL														},
+	{ OP_MOV, MATCH_NIL, MATCH_NIL, MATCH_NIL, MATCH_NIL, nullptr },
 };
 
 CCodeGen_x86::CONSTMATCHER CCodeGen_x86::g_mdMinMaxWConstMatchers[] =
 {
-	{ OP_MD_MIN_W,	MATCH_VARIABLE128,	MATCH_VARIABLE128,	MATCH_VARIABLE128,	&CCodeGen_x86::Emit_Md_MinW_VarVarVar	},
-	{ OP_MD_MAX_W,	MATCH_VARIABLE128,	MATCH_VARIABLE128,	MATCH_VARIABLE128,	&CCodeGen_x86::Emit_Md_MaxW_VarVarVar	},
+	{ OP_MD_MIN_W, MATCH_VARIABLE128, MATCH_VARIABLE128, MATCH_VARIABLE128, MATCH_NIL, &CCodeGen_x86::Emit_Md_MinW_VarVarVar },
+	{ OP_MD_MAX_W, MATCH_VARIABLE128, MATCH_VARIABLE128, MATCH_VARIABLE128, MATCH_NIL, &CCodeGen_x86::Emit_Md_MaxW_VarVarVar },
 
-	{ OP_MOV, MATCH_NIL, MATCH_NIL, MATCH_NIL, nullptr },
+	{ OP_MOV, MATCH_NIL, MATCH_NIL, MATCH_NIL, MATCH_NIL, nullptr },
 };
 
 CCodeGen_x86::CONSTMATCHER CCodeGen_x86::g_mdMinMaxWSse41ConstMatchers[] = 
 {
-	MD_CONST_MATCHERS_3OPS(OP_MD_MIN_W,		MDOP_MINW)
-	MD_CONST_MATCHERS_3OPS(OP_MD_MAX_W,		MDOP_MAXW)
+	MD_CONST_MATCHERS_3OPS(OP_MD_MIN_W, MDOP_MINW)
+	MD_CONST_MATCHERS_3OPS(OP_MD_MAX_W, MDOP_MAXW)
 
-	{ OP_MOV, MATCH_NIL, MATCH_NIL, MATCH_NIL, nullptr },
+	{ OP_MOV, MATCH_NIL, MATCH_NIL, MATCH_NIL, MATCH_NIL, nullptr },
 };
 
 CCodeGen_x86::CONSTMATCHER CCodeGen_x86::g_mdMovMaskedConstMatchers[] =
 {
-	{ OP_MD_MOV_MASKED, MATCH_VARIABLE128, MATCH_VARIABLE128, MATCH_VARIABLE128, &CCodeGen_x86::Emit_Md_MovMasked_VarVarVar },
+	{ OP_MD_MOV_MASKED, MATCH_VARIABLE128, MATCH_VARIABLE128, MATCH_VARIABLE128, MATCH_NIL, &CCodeGen_x86::Emit_Md_MovMasked_VarVarVar },
 
-	{ OP_MOV, MATCH_NIL, MATCH_NIL, MATCH_NIL, nullptr },
+	{ OP_MOV, MATCH_NIL, MATCH_NIL, MATCH_NIL, MATCH_NIL, nullptr },
 };
 
 CCodeGen_x86::CONSTMATCHER CCodeGen_x86::g_mdMovMaskedSse41ConstMatchers[] =
 {
-	{ OP_MD_MOV_MASKED, MATCH_VARIABLE128, MATCH_VARIABLE128, MATCH_VARIABLE128, &CCodeGen_x86::Emit_Md_MovMasked_Sse41_VarVarVar },
+	{ OP_MD_MOV_MASKED, MATCH_VARIABLE128, MATCH_VARIABLE128, MATCH_VARIABLE128, MATCH_NIL, &CCodeGen_x86::Emit_Md_MovMasked_Sse41_VarVarVar },
 
-	{ OP_MOV, MATCH_NIL, MATCH_NIL, MATCH_NIL, nullptr },
+	{ OP_MOV, MATCH_NIL, MATCH_NIL, MATCH_NIL, MATCH_NIL, nullptr },
 };
 
 CCodeGen_x86::CONSTMATCHER CCodeGen_x86::g_mdFpFlagConstMatchers[] =
 {
-	{ OP_MD_ISNEGATIVE, MATCH_REGISTER, MATCH_VARIABLE128, MATCH_NIL, &CCodeGen_x86::Emit_Md_GetFlag_RegVar<MDOP_ISNEGATIVE> },
-	{ OP_MD_ISNEGATIVE, MATCH_MEMORY,   MATCH_VARIABLE128, MATCH_NIL, &CCodeGen_x86::Emit_Md_GetFlag_MemVar<MDOP_ISNEGATIVE> },
+	{ OP_MD_MAKESZ,     MATCH_VARIABLE, MATCH_VARIABLE128, MATCH_NIL, MATCH_NIL, &CCodeGen_x86::Emit_Md_MakeSz_VarVar },
 
-	{ OP_MD_ISZERO,     MATCH_REGISTER, MATCH_VARIABLE128, MATCH_NIL, &CCodeGen_x86::Emit_Md_GetFlag_RegVar<MDOP_ISZERO>     },
-	{ OP_MD_ISZERO,     MATCH_MEMORY,   MATCH_VARIABLE128, MATCH_NIL, &CCodeGen_x86::Emit_Md_GetFlag_MemVar<MDOP_ISZERO>     },
-
-	{ OP_MOV, MATCH_NIL, MATCH_NIL, MATCH_NIL, nullptr },
+	{ OP_MOV, MATCH_NIL, MATCH_NIL, MATCH_NIL, MATCH_NIL, nullptr },
 };
 
 CCodeGen_x86::CONSTMATCHER CCodeGen_x86::g_mdFpFlagSsse3ConstMatchers[] =
 {
-	{ OP_MD_ISNEGATIVE, MATCH_REGISTER, MATCH_VARIABLE128, MATCH_NIL, &CCodeGen_x86::Emit_Md_GetFlag_RegVar<MDOP_ISNEGATIVE_SSSE3> },
-	{ OP_MD_ISNEGATIVE, MATCH_MEMORY,   MATCH_VARIABLE128, MATCH_NIL, &CCodeGen_x86::Emit_Md_GetFlag_MemVar<MDOP_ISNEGATIVE_SSSE3> },
-
-	{ OP_MD_ISZERO,     MATCH_REGISTER, MATCH_VARIABLE128, MATCH_NIL, &CCodeGen_x86::Emit_Md_GetFlag_RegVar<MDOP_ISZERO_SSSE3>     },
-	{ OP_MD_ISZERO,     MATCH_MEMORY,   MATCH_VARIABLE128, MATCH_NIL, &CCodeGen_x86::Emit_Md_GetFlag_MemVar<MDOP_ISZERO_SSSE3>     },
-
-	{ OP_MOV, MATCH_NIL, MATCH_NIL, MATCH_NIL, nullptr },
+	{ OP_MD_MAKESZ,     MATCH_VARIABLE, MATCH_VARIABLE128, MATCH_NIL, MATCH_NIL, &CCodeGen_x86::Emit_Md_MakeSz_Ssse3_VarVar },
+	
+	{ OP_MOV, MATCH_NIL, MATCH_NIL, MATCH_NIL, MATCH_NIL, nullptr },
 };

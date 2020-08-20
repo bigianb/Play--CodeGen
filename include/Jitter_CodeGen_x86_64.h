@@ -78,6 +78,8 @@ namespace Jitter
 		void								Emit_Prolog(const StatementList&, unsigned int) override;
 		void								Emit_Epilog() override;
 
+		CX86Assembler::CAddress				MakeConstant128Address(const LITERAL128&) override;
+		
 		//PARAM
 		void								Emit_Param_Ctx(const STATEMENT&);
 		void								Emit_Param_Reg(const STATEMENT&);
@@ -115,6 +117,10 @@ namespace Jitter
 		template <typename> void			Emit_Shift64_RelRelReg(const STATEMENT&);
 		template <typename> void			Emit_Shift64_RelRelMem(const STATEMENT&);
 		template <typename> void			Emit_Shift64_RelRelCst(const STATEMENT&);
+
+		//CMP
+		void								Emit_Cmp_VarVarVar(const STATEMENT&);
+		void								Emit_Cmp_VarVarCst(const STATEMENT&);
 
 		//CMP64
 		void								Cmp64_RelRel(CX86Assembler::REGISTER, const STATEMENT&);
@@ -158,11 +164,12 @@ namespace Jitter
 
 		struct CONSTMATCHER
 		{
-			OPERATION				op;
-			MATCHTYPE				dstType;
-			MATCHTYPE				src1Type;
-			MATCHTYPE				src2Type;
-			ConstCodeEmitterType	emitter;
+			OPERATION op;
+			MATCHTYPE dstType;
+			MATCHTYPE src1Type;
+			MATCHTYPE src2Type;
+			MATCHTYPE src3Type;
+			ConstCodeEmitterType emitter;
 		};
 
 		enum SYSTEMV_MAX_REGISTERS

@@ -1,3 +1,4 @@
+#include <cassert>
 #include "X86Assembler.h"
 
 //------------------------------------------------
@@ -63,6 +64,22 @@ void CX86Assembler::CmpssEd(XMMREGISTER registerId, const CAddress& address, SSE
 {
 	WriteEdVdOp_F3_0F(0xC2, address, registerId);
 	WriteByte(static_cast<uint8>(condition));
+}
+
+void CX86Assembler::CmppsVo(XMMREGISTER registerId, const CAddress& address, SSE_CMP_TYPE condition)
+{
+	WriteEdVdOp_0F(0xC2, address, registerId);
+	WriteByte(static_cast<uint8>(condition));
+}
+
+void CX86Assembler::CmpltpsVo(XMMREGISTER registerId, const CAddress& address)
+{
+	CmppsVo(registerId, address, SSE_CMP_LT);
+}
+
+void CX86Assembler::CmpgtpsVo(XMMREGISTER registerId, const CAddress& address)
+{
+	CmppsVo(registerId, address, SSE_CMP_NLE);
 }
 
 void CX86Assembler::Cvtsi2ssEd(XMMREGISTER registerId, const CAddress& address)
@@ -467,6 +484,18 @@ void CX86Assembler::WriteEdVdOp_66_0F_38(uint8 opcode, const CAddress& address, 
 	newAddress.ModRm.nFnReg = registerId;
 	WriteByte(opcode);
 	newAddress.Write(&m_tmpStream);
+	//Check for rIP relative addressing
+	if(address.ModRm.nByte == 0x05)
+	{
+		assert(m_currentLabel);
+		auto literalIterator = m_currentLabel->literal128Refs.find(address.literal128Id);
+		assert(literalIterator != std::end(m_currentLabel->literal128Refs));
+		auto& literal = literalIterator->second;
+		assert(literal.offset == 0);
+		literal.offset = static_cast<uint32>(m_tmpStream.Tell());
+		//Write placeholder
+		m_tmpStream.Write32(0);
+	}
 }
 
 void CX86Assembler::WriteEdVdOp_66_0F_3A(uint8 opcode, const CAddress& address, XMMREGISTER xmmRegisterId)

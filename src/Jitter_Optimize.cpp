@@ -92,6 +92,7 @@ CJitter::VERSIONED_STATEMENT_LIST CJitter::GenerateVersionedStatementList(const 
 	{
 		ReplaceUse()(newStatement.src1, result.relativeVersions);
 		ReplaceUse()(newStatement.src2, result.relativeVersions);
+		ReplaceUse()(newStatement.src3, result.relativeVersions);
 
 		if(CSymbol* dst = dynamic_symbolref_cast(SYM_RELATIVE, newStatement.dst))
 		{
@@ -137,21 +138,16 @@ StatementList CJitter::CollapseVersionedStatementList(const VERSIONED_STATEMENT_
 	StatementList result;
 	for(auto newStatement : statements.statements)
 	{
-		if(VersionedSymbolRefPtr src1 = std::dynamic_pointer_cast<CVersionedSymbolRef>(newStatement.src1))
-		{
-			newStatement.src1 = std::make_shared<CSymbolRef>(src1->GetSymbol());
-		}
-
-		if(VersionedSymbolRefPtr src2 = std::dynamic_pointer_cast<CVersionedSymbolRef>(newStatement.src2))
-		{
-			newStatement.src2 = std::make_shared<CSymbolRef>(src2->GetSymbol());
-		}
-
-		if(VersionedSymbolRefPtr dst = std::dynamic_pointer_cast<CVersionedSymbolRef>(newStatement.dst))
-		{
-			newStatement.dst = std::make_shared<CSymbolRef>(dst->GetSymbol());
-		}
-
+		newStatement.VisitOperands(
+			[](SymbolRefPtr& symbolRef, bool)
+			{
+				if(auto versionedSymbolRef = std::dynamic_pointer_cast<CVersionedSymbolRef>(symbolRef))
+				{
+					symbolRef = std::make_shared<CSymbolRef>(symbolRef->GetSymbol());
+				}
+			}
+		);
+		
 		result.push_back(newStatement);
 	}
 	return result;
@@ -169,7 +165,7 @@ void CJitter::Compile()
 
 				//DumpStatementList(m_currentBlock->statements);
 
-				VERSIONED_STATEMENT_LIST versionedStatements = GenerateVersionedStatementList(basicBlock.statements);
+				auto versionedStatements = GenerateVersionedStatementList(basicBlock.statements);
 
 				while(1)
 				{
@@ -177,6 +173,7 @@ void CJitter::Compile()
 					dirty |= ConstantPropagation(versionedStatements.statements);
 					dirty |= ConstantFolding(versionedStatements.statements);
 					dirty |= CopyPropagation(versionedStatements.statements);
+					dirty |= ReorderAdd(versionedStatements.statements);
 					dirty |= DeadcodeElimination(versionedStatements);
 
 					if(!dirty) break;
@@ -880,24 +877,13 @@ void CJitter::MergeBasicBlocks(BASIC_BLOCK& dstBlock, const BASIC_BLOCK& srcBloc
 
 	for(auto statement : srcBlock.statements)
 	{
-		if(statement.dst)
-		{
-			auto symbol = statement.dst->GetSymbol();
-			statement.dst = std::make_shared<CSymbolRef>(dstSymbolTable.MakeSymbol(symbol));
-		}
-
-		if(statement.src1)
-		{
-			auto symbol = statement.src1->GetSymbol();
-			statement.src1 = std::make_shared<CSymbolRef>(dstSymbolTable.MakeSymbol(symbol));
-		}
-
-		if(statement.src2)
-		{
-			auto symbol = statement.src2->GetSymbol();
-			statement.src2 = std::make_shared<CSymbolRef>(dstSymbolTable.MakeSymbol(symbol));
-		}
-
+		statement.VisitOperands(
+			[&dstSymbolTable](SymbolRefPtr& symbolRef, bool)
+			{
+				auto symbol = symbolRef->GetSymbol();
+				symbolRef = std::make_shared<CSymbolRef>(dstSymbolTable.MakeSymbol(symbol));
+			}
+		);
 		dstBlock.statements.push_back(statement);
 	}
 
@@ -1125,20 +1111,61 @@ bool CJitter::ConstantPropagation(StatementList& statements)
 		{
 			if(outerStatementIterator == innerStatementIterator) continue;
 
-			STATEMENT& innerStatement(*innerStatementIterator);
+			auto& innerStatement(*innerStatementIterator);
+			
+			innerStatement.VisitSources(
+				[&] (SymbolRefPtr& symbol, bool)
+				{
+					if(symbol->Equals(outerStatement.dst.get()))
+					{
+						symbol = outerStatement.src1;
+						changed = true;
+					}
+				}
+			);
+		}
+	}
+	return changed;
+}
 
-			if(innerStatement.src1 && innerStatement.src1->Equals(outerStatement.dst.get()))
-			{
-				innerStatement.src1 = outerStatement.src1;
-				changed = true;
-				continue;
-			}
+bool CJitter::ReorderAdd(StatementList& statements)
+{
+	bool changed = false;
 
-			if(innerStatement.src2 && innerStatement.src2->Equals(outerStatement.dst.get()))
+	for(auto outerStatementIterator(statements.begin());
+		statements.end() != outerStatementIterator; ++outerStatementIterator)
+	{
+		STATEMENT& outerStatement(*outerStatementIterator);
+
+		//Some operations we can't propagate
+		if(outerStatement.op != OP_ADD) continue;
+
+		CSymbolRef* outerDstSymbol = outerStatement.dst.get();
+		assert(outerDstSymbol);
+
+		CSymbol* outerSrc2cst = dynamic_symbolref_cast(SYM_CONSTANT, outerStatement.src2);
+		//Don't mess with relatives
+		if(outerDstSymbol->GetSymbol()->IsRelative() || !outerSrc2cst)
+		{
+			continue;
+		}
+
+		//Check for OP_SLL that uses the result of this operation and propagate the shift
+		auto innerStatementIterator = std::next(outerStatementIterator);
+		STATEMENT& innerStatement(*innerStatementIterator);
+		if(innerStatement.op == OP_SLL && innerStatement.src1->Equals(outerDstSymbol))
+		{
+			CSymbol* innerSrc2cst = dynamic_symbolref_cast(SYM_CONSTANT, innerStatement.src2);
+			if(innerSrc2cst)
 			{
-				innerStatement.src2 = outerStatement.src1;
+				uint32 result = outerSrc2cst->m_valueLow << innerSrc2cst->m_valueLow;
+
+				std::swap(outerStatement, innerStatement);
+				std::swap(outerStatement.src1, innerStatement.src1);
+				std::swap(outerStatement.dst, innerStatement.dst);
+				innerStatement.src2 = MakeSymbolRef(MakeSymbol(SYM_CONSTANT, result));
 				changed = true;
-				continue;
+
 			}
 		}
 	}
@@ -1173,11 +1200,12 @@ bool CJitter::CopyPropagation(StatementList& statements)
 		{
 			if(outerStatementIterator == innerStatementIterator) continue;
 
-			STATEMENT& innerStatement(*innerStatementIterator);
+			auto& innerStatement(*innerStatementIterator);
 
 			if(
 				(innerStatement.src1 && innerStatement.src1->Equals(outerDstSymbol)) || 
-				(innerStatement.src2 && innerStatement.src2->Equals(outerDstSymbol))
+				(innerStatement.src2 && innerStatement.src2->Equals(outerDstSymbol)) ||
+				(innerStatement.src3 && innerStatement.src3->Equals(outerDstSymbol))
 				)
 			{
 				useCount++;
@@ -1188,14 +1216,14 @@ bool CJitter::CopyPropagation(StatementList& statements)
 		{
 			unsigned int changeCount = 0;
 
-			//Check for all OP_MOVs that uses the result of this operation and propagate
 			for(auto innerStatementIterator(outerStatementIterator);
 				statements.end() != innerStatementIterator; ++innerStatementIterator)
 			{
 				if(outerStatementIterator == innerStatementIterator) continue;
 
-				STATEMENT& innerStatement(*innerStatementIterator);
+				auto& innerStatement(*innerStatementIterator);
 
+				//Check for all OP_MOVs that uses the result of this operation and propagate
 				if(innerStatement.op == OP_MOV && innerStatement.src1->Equals(outerDstSymbol))
 				{
 					changeCount++;
@@ -1203,8 +1231,24 @@ bool CJitter::CopyPropagation(StatementList& statements)
 					innerStatement.op = outerStatement.op;
 					innerStatement.src1 = outerStatement.src1;
 					innerStatement.src2 = outerStatement.src2;
+					innerStatement.src3 = outerStatement.src3;
 					innerStatement.jmpCondition = outerStatement.jmpCondition;
 					changed = true;
+				}
+				// find all the add/sub constant and add them together
+				else if(outerStatement.op == innerStatement.op && innerStatement.op == OP_ADD && innerStatement.src1->Equals(outerDstSymbol))
+				{
+					CSymbol* innerSrc2cst = dynamic_symbolref_cast(SYM_CONSTANT, innerStatement.src2);
+					CSymbol* outerSrc2cst = dynamic_symbolref_cast(SYM_CONSTANT, outerStatement.src2);
+					if(innerSrc2cst && outerSrc2cst)
+					{
+						changeCount++;
+						uint32 result = innerSrc2cst->m_valueLow + outerSrc2cst->m_valueLow;
+						outerStatement.src2 = MakeSymbolRef(MakeSymbol(SYM_CONSTANT, result));
+						innerStatement.op = OP_MOV;
+						innerStatement.src2.reset();
+						changed = true;
+					}
 				}
 			}
 
@@ -1251,37 +1295,27 @@ bool CJitter::DeadcodeElimination(VERSIONED_STATEMENT_LIST& versionedStatementLi
 		{
 			if(outerStatementIterator == innerStatementIterator) continue;
 
-			STATEMENT& innerStatement(*innerStatementIterator);
+			const auto& innerStatement(*innerStatementIterator);
+			
+			innerStatement.VisitSources(
+				[&](const SymbolRefPtr& innerSymbolRef, bool)
+				{
+					if(innerSymbolRef->Equals(symbolRef.get()))
+					{
+						used = true;
+						return;
+					}
 
-			if(innerStatement.src1)
-			{
-				if(innerStatement.src1->Equals(symbolRef.get()))
-				{
-					used = true;
-					break;
+					auto symbol(innerSymbolRef->GetSymbol());
+					if(!symbol->Equals(candidate) && symbol->Aliases(candidate))
+					{
+						used = true;
+						return;
+					}
 				}
-
-				SymbolPtr symbol(innerStatement.src1->GetSymbol());
-				if(!symbol->Equals(candidate) && symbol->Aliases(candidate))
-				{
-					used = true;
-					break;
-				}
-			}
-			if(innerStatement.src2)
-			{
-				if(innerStatement.src2->Equals(symbolRef.get()))
-				{
-					used = true;
-					break;
-				}
-				SymbolPtr symbol(innerStatement.src2->GetSymbol());
-				if(!symbol->Equals(candidate) && symbol->Aliases(candidate))
-				{
-					used = true;
-					break;
-				}
-			}
+			);
+			
+			if(used) break;
 		}
 
 		if(!used)
@@ -1330,35 +1364,19 @@ void CJitter::CoalesceTemporaries(BASIC_BLOCK& basicBlock)
 			{
 				if(outerStatementIterator == innerStatementIterator) continue;
 
-				STATEMENT& innerStatement(*innerStatementIterator);
-
-				if(innerStatement.dst)
-				{
-					auto symbol(innerStatement.dst->GetSymbol());
-					if(symbol->Equals(encounteredTemp))
+				const auto& innerStatement(*innerStatementIterator);
+				innerStatement.VisitOperands(
+					[&](const SymbolRefPtr& symbolRef, bool)
 					{
-						used = true;
-						break;
+						auto symbol = symbolRef->GetSymbol();
+						if(symbol->Equals(encounteredTemp))
+						{
+							used = true;
+						}
 					}
-				}
-				if(innerStatement.src1)
-				{
-					auto symbol(innerStatement.src1->GetSymbol());
-					if(symbol->Equals(encounteredTemp))
-					{
-						used = true;
-						break;
-					}
-				}
-				if(innerStatement.src2)
-				{
-					auto symbol(innerStatement.src2->GetSymbol());
-					if(symbol->Equals(encounteredTemp))
-					{
-						used = true;
-						break;
-					}
-				}
+				);
+				
+				if(used) break;
 			}
 
 			if(!used)
@@ -1408,6 +1426,14 @@ void CJitter::CoalesceTemporaries(BASIC_BLOCK& basicBlock)
 					if(symbol->Equals(tempSymbol))
 					{
 						innerStatement.src2 = MakeSymbolRef(candidatePtr);
+					}
+				}
+				if(innerStatement.src3)
+				{
+					auto symbol(innerStatement.src3->GetSymbol());
+					if(symbol->Equals(tempSymbol))
+					{
+						innerStatement.src3 = MakeSymbolRef(candidatePtr);
 					}
 				}
 			}

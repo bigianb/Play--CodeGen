@@ -11,8 +11,16 @@ namespace Jitter
 	class CCodeGen_AArch32 : public CCodeGen
 	{
 	public:
+		enum PLATFORM_ABI
+		{
+			PLATFORM_ABI_ARMEABI,
+			PLATFORM_ABI_IOS, //https://developer.apple.com/library/archive/documentation/Xcode/Conceptual/iPhoneOSABIReference/Articles/ARMv6FunctionCallingConventions.html#//apple_ref/doc/uid/TP40009021-SW1
+		};
+		
 												CCodeGen_AArch32();
 		virtual									~CCodeGen_AArch32() = default;
+
+		void									SetPlatformAbi(PLATFORM_ABI);
 
 		void									GenerateCode(const StatementList&, unsigned int) override;
 		void									SetStream(Framework::CStream*) override;
@@ -69,8 +77,11 @@ namespace Jitter
 			MATCHTYPE							dstType;
 			MATCHTYPE							src1Type;
 			MATCHTYPE							src2Type;
+			MATCHTYPE							src3Type;
 			ConstCodeEmitterType				emitter;
 		};
+
+		void									InsertMatchers(const CONSTMATCHER*);
 
 		static uint16							GetSavedRegisterList(uint32);
 
@@ -254,6 +265,11 @@ namespace Jitter
 			static OpRegType OpReg() { return &CAArch32Assembler::Vmax_F32; }
 		};
 
+		struct FPUMDOP_CMPGT : public FPUMDOP_BASE3
+		{
+			static OpRegType OpReg() { return &CAArch32Assembler::Vcgt_F32; }
+		};
+
 		//MDOP -----------------------------------------------------------
 		struct MDOP_BASE2
 		{
@@ -420,6 +436,11 @@ namespace Jitter
 			static OpRegType OpReg() { return &CAArch32Assembler::Veor; }
 		};
 
+		struct MDOP_NOT : public MDOP_BASE2
+		{
+			static OpRegType OpReg() { return &CAArch32Assembler::Vmvn; }
+		};
+
 		struct MDOP_SLLH : public MDOP_SHIFT
 		{
 			static OpRegType OpReg() { return &CAArch32Assembler::Vshl_I16; }
@@ -578,6 +599,10 @@ namespace Jitter
 		void									Emit_LoadFromRef_Ref_VarVar(const STATEMENT&);
 		void									Emit_LoadFromRef_64_MemVar(const STATEMENT&);
 		
+		//LOADFROMREFIDX
+		void									Emit_LoadFromRefIdx_VarVarVar(const STATEMENT&);
+		void									Emit_LoadFromRefIdx_VarVarCst(const STATEMENT&);
+
 		//LOAD8FROMREF
 		void									Emit_Load8FromRef_MemVar(const STATEMENT&);
 
@@ -595,6 +620,10 @@ namespace Jitter
 		void									Emit_StoreAtRef_64_VarMem(const STATEMENT&);
 		void									Emit_StoreAtRef_64_VarCst(const STATEMENT&);
 		
+		//STOREATREFIDX
+		void									Emit_StoreAtRefIdx_VarVarAny(const STATEMENT&);
+		void									Emit_StoreAtRefIdx_VarCstAny(const STATEMENT&);
+
 		//MOV64
 		void									Emit_Mov_Mem64Mem64(const STATEMENT&);
 		void									Emit_Mov_Mem64Cst64(const STATEMENT&);
@@ -650,12 +679,10 @@ namespace Jitter
 		template <typename> void				Emit_Md_MemMem(const STATEMENT&);
 		template <typename> void				Emit_Md_MemMemMem(const STATEMENT&);
 		template <typename> void				Emit_Md_Shift_MemMemCst(const STATEMENT&);
-		template <uint32> void					Emit_Md_Test_VarMem(const STATEMENT&);
-		template <uint32> void					Emit_Md_TestF_VarMem(const STATEMENT&);
 
 		void									Emit_Md_Mov_MemMem(const STATEMENT&);
-		void									Emit_Md_Not_MemMem(const STATEMENT&);
 		void									Emit_Md_DivS_MemMemMem(const STATEMENT&);
+		void									Emit_Md_CmpLtS_MemMemMem(const STATEMENT&);
 
 		void									Emit_Md_Srl256_MemMemVar(const STATEMENT&);
 		void									Emit_Md_Srl256_MemMemCst(const STATEMENT&);
@@ -667,6 +694,8 @@ namespace Jitter
 		void									Emit_Md_Expand_MemReg(const STATEMENT&);
 		void									Emit_Md_Expand_MemMem(const STATEMENT&);
 		void									Emit_Md_Expand_MemCst(const STATEMENT&);
+
+		void									Emit_Md_MakeSz_VarVar(const STATEMENT&);
 
 		void									Emit_Md_PackHB_MemMemMem(const STATEMENT&);
 		void									Emit_Md_PackWH_MemMemMem(const STATEMENT&);
@@ -690,6 +719,7 @@ namespace Jitter
 
 		Framework::CStream*						m_stream = nullptr;
 		CAArch32Assembler						m_assembler;
+		PLATFORM_ABI							m_platformAbi = PLATFORM_ABI_ARMEABI;
 		LabelMapType							m_labels;
 		ParamStack								m_params;
 		uint32									m_stackSize = 0;

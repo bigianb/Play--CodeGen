@@ -125,9 +125,9 @@ void CCodeGen_x86_64::Emit_Alu64_MemCstMem(const STATEMENT& statement)
 }
 
 #define ALU64_CONST_MATCHERS(ALUOP_CST, ALUOP) \
-	{ ALUOP_CST,	MATCH_MEMORY64,		MATCH_MEMORY64,		MATCH_MEMORY64,		&CCodeGen_x86_64::Emit_Alu64_MemMemMem<ALUOP>	}, \
-	{ ALUOP_CST,	MATCH_MEMORY64,		MATCH_MEMORY64,		MATCH_CONSTANT64,	&CCodeGen_x86_64::Emit_Alu64_MemMemCst<ALUOP>	}, \
-	{ ALUOP_CST,	MATCH_MEMORY64,		MATCH_CONSTANT64,	MATCH_MEMORY64,		&CCodeGen_x86_64::Emit_Alu64_MemCstMem<ALUOP>	},
+	{ ALUOP_CST, MATCH_MEMORY64, MATCH_MEMORY64,   MATCH_MEMORY64,   MATCH_NIL, &CCodeGen_x86_64::Emit_Alu64_MemMemMem<ALUOP> }, \
+	{ ALUOP_CST, MATCH_MEMORY64, MATCH_MEMORY64,   MATCH_CONSTANT64, MATCH_NIL, &CCodeGen_x86_64::Emit_Alu64_MemMemCst<ALUOP> }, \
+	{ ALUOP_CST, MATCH_MEMORY64, MATCH_CONSTANT64, MATCH_MEMORY64,   MATCH_NIL, &CCodeGen_x86_64::Emit_Alu64_MemCstMem<ALUOP> },
 
 //SHIFTOP
 //-------------------------------------------------------------------
@@ -190,38 +190,38 @@ void CCodeGen_x86_64::Emit_Shift64_RelRelCst(const STATEMENT& statement)
 }
 
 #define SHIFT64_CONST_MATCHERS(SHIFTOP_CST, SHIFTOP) \
-	{ SHIFTOP_CST,	MATCH_RELATIVE64,	MATCH_RELATIVE64,	MATCH_REGISTER,		&CCodeGen_x86_64::Emit_Shift64_RelRelReg<SHIFTOP>		}, \
-	{ SHIFTOP_CST,	MATCH_RELATIVE64,	MATCH_RELATIVE64,	MATCH_MEMORY,		&CCodeGen_x86_64::Emit_Shift64_RelRelMem<SHIFTOP>		}, \
-	{ SHIFTOP_CST,	MATCH_RELATIVE64,	MATCH_RELATIVE64,	MATCH_CONSTANT,		&CCodeGen_x86_64::Emit_Shift64_RelRelCst<SHIFTOP>		},
+	{ SHIFTOP_CST, MATCH_RELATIVE64, MATCH_RELATIVE64, MATCH_REGISTER, MATCH_NIL, &CCodeGen_x86_64::Emit_Shift64_RelRelReg<SHIFTOP> }, \
+	{ SHIFTOP_CST, MATCH_RELATIVE64, MATCH_RELATIVE64, MATCH_MEMORY,   MATCH_NIL, &CCodeGen_x86_64::Emit_Shift64_RelRelMem<SHIFTOP> }, \
+	{ SHIFTOP_CST, MATCH_RELATIVE64, MATCH_RELATIVE64, MATCH_CONSTANT, MATCH_NIL, &CCodeGen_x86_64::Emit_Shift64_RelRelCst<SHIFTOP> },
 
 CCodeGen_x86_64::CONSTMATCHER CCodeGen_x86_64::g_constMatchers[] = 
 {
-	{ OP_PARAM,			MATCH_NIL,			MATCH_CONTEXT,		MATCH_NIL,			&CCodeGen_x86_64::Emit_Param_Ctx							},
-	{ OP_PARAM,			MATCH_NIL,			MATCH_REGISTER,		MATCH_NIL,			&CCodeGen_x86_64::Emit_Param_Reg							},
-	{ OP_PARAM,			MATCH_NIL,			MATCH_MEMORY,		MATCH_NIL,			&CCodeGen_x86_64::Emit_Param_Mem							},
-	{ OP_PARAM,			MATCH_NIL,			MATCH_CONSTANT,		MATCH_NIL,			&CCodeGen_x86_64::Emit_Param_Cst							},
-	{ OP_PARAM,			MATCH_NIL,			MATCH_MEMORY64,		MATCH_NIL,			&CCodeGen_x86_64::Emit_Param_Mem64							},
-	{ OP_PARAM,			MATCH_NIL,			MATCH_CONSTANT64,	MATCH_NIL,			&CCodeGen_x86_64::Emit_Param_Cst64							},
-	{ OP_PARAM,			MATCH_NIL,			MATCH_REGISTER128,	MATCH_NIL,			&CCodeGen_x86_64::Emit_Param_Reg128							},
-	{ OP_PARAM,			MATCH_NIL,			MATCH_MEMORY128,	MATCH_NIL,			&CCodeGen_x86_64::Emit_Param_Mem128							},
+	{ OP_PARAM, MATCH_NIL, MATCH_CONTEXT,     MATCH_NIL, MATCH_NIL, &CCodeGen_x86_64::Emit_Param_Ctx    },
+	{ OP_PARAM, MATCH_NIL, MATCH_REGISTER,    MATCH_NIL, MATCH_NIL, &CCodeGen_x86_64::Emit_Param_Reg    },
+	{ OP_PARAM, MATCH_NIL, MATCH_MEMORY,      MATCH_NIL, MATCH_NIL, &CCodeGen_x86_64::Emit_Param_Mem    },
+	{ OP_PARAM, MATCH_NIL, MATCH_CONSTANT,    MATCH_NIL, MATCH_NIL, &CCodeGen_x86_64::Emit_Param_Cst    },
+	{ OP_PARAM, MATCH_NIL, MATCH_MEMORY64,    MATCH_NIL, MATCH_NIL, &CCodeGen_x86_64::Emit_Param_Mem64  },
+	{ OP_PARAM, MATCH_NIL, MATCH_CONSTANT64,  MATCH_NIL, MATCH_NIL, &CCodeGen_x86_64::Emit_Param_Cst64  },
+	{ OP_PARAM, MATCH_NIL, MATCH_REGISTER128, MATCH_NIL, MATCH_NIL, &CCodeGen_x86_64::Emit_Param_Reg128 },
+	{ OP_PARAM, MATCH_NIL, MATCH_MEMORY128,   MATCH_NIL, MATCH_NIL, &CCodeGen_x86_64::Emit_Param_Mem128 },
 
-	{ OP_PARAM_RET,		MATCH_NIL,			MATCH_MEMORY128,	MATCH_NIL,			&CCodeGen_x86_64::Emit_Param_Mem128							},
+	{ OP_PARAM_RET, MATCH_NIL, MATCH_MEMORY128, MATCH_NIL, MATCH_NIL, &CCodeGen_x86_64::Emit_Param_Mem128 },
 
-	{ OP_CALL,			MATCH_NIL,			MATCH_CONSTANTPTR,	MATCH_CONSTANT,		&CCodeGen_x86_64::Emit_Call									},
+	{ OP_CALL, MATCH_NIL, MATCH_CONSTANTPTR, MATCH_CONSTANT, MATCH_NIL, &CCodeGen_x86_64::Emit_Call },
 
-	{ OP_RETVAL,		MATCH_REGISTER,		MATCH_NIL,			MATCH_NIL,			&CCodeGen_x86_64::Emit_RetVal_Reg							},
-	{ OP_RETVAL,		MATCH_MEMORY,		MATCH_NIL,			MATCH_NIL,			&CCodeGen_x86_64::Emit_RetVal_Mem							},
-	{ OP_RETVAL,		MATCH_MEMORY64,		MATCH_NIL,			MATCH_NIL,			&CCodeGen_x86_64::Emit_RetVal_Mem64							},
-	{ OP_RETVAL,		MATCH_REGISTER128,	MATCH_NIL,			MATCH_NIL,			&CCodeGen_x86_64::Emit_RetVal_Reg128						},
-	{ OP_RETVAL,		MATCH_MEMORY128,	MATCH_NIL,			MATCH_NIL,			&CCodeGen_x86_64::Emit_RetVal_Mem128						},
+	{ OP_RETVAL, MATCH_REGISTER,    MATCH_NIL, MATCH_NIL, MATCH_NIL, &CCodeGen_x86_64::Emit_RetVal_Reg    },
+	{ OP_RETVAL, MATCH_MEMORY,      MATCH_NIL, MATCH_NIL, MATCH_NIL, &CCodeGen_x86_64::Emit_RetVal_Mem    },
+	{ OP_RETVAL, MATCH_MEMORY64,    MATCH_NIL, MATCH_NIL, MATCH_NIL, &CCodeGen_x86_64::Emit_RetVal_Mem64  },
+	{ OP_RETVAL, MATCH_REGISTER128, MATCH_NIL, MATCH_NIL, MATCH_NIL, &CCodeGen_x86_64::Emit_RetVal_Reg128 },
+	{ OP_RETVAL, MATCH_MEMORY128,   MATCH_NIL, MATCH_NIL, MATCH_NIL, &CCodeGen_x86_64::Emit_RetVal_Mem128 },
 
-	{ OP_EXTERNJMP,		MATCH_NIL,			MATCH_CONSTANTPTR,	MATCH_NIL,			&CCodeGen_x86_64::Emit_ExternJmp							},
-	{ OP_EXTERNJMP_DYN,	MATCH_NIL,			MATCH_CONSTANTPTR,	MATCH_NIL,			&CCodeGen_x86_64::Emit_ExternJmp							},
+	{ OP_EXTERNJMP,     MATCH_NIL, MATCH_CONSTANTPTR, MATCH_NIL, MATCH_NIL, &CCodeGen_x86_64::Emit_ExternJmp },
+	{ OP_EXTERNJMP_DYN, MATCH_NIL, MATCH_CONSTANTPTR, MATCH_NIL, MATCH_NIL, &CCodeGen_x86_64::Emit_ExternJmp },
 
-	{ OP_MOV,			MATCH_MEMORY64,		MATCH_MEMORY64,		MATCH_NIL,			&CCodeGen_x86_64::Emit_Mov_Mem64Mem64						},
-	{ OP_MOV,			MATCH_RELATIVE64,	MATCH_CONSTANT64,	MATCH_NIL,			&CCodeGen_x86_64::Emit_Mov_Rel64Cst64						},
+	{ OP_MOV, MATCH_MEMORY64,   MATCH_MEMORY64,   MATCH_NIL, MATCH_NIL, &CCodeGen_x86_64::Emit_Mov_Mem64Mem64 },
+	{ OP_MOV, MATCH_RELATIVE64, MATCH_CONSTANT64, MATCH_NIL, MATCH_NIL, &CCodeGen_x86_64::Emit_Mov_Rel64Cst64 },
 
-	{ OP_MOV,			MATCH_REG_REF,		MATCH_MEM_REF,		MATCH_NIL,			&CCodeGen_x86_64::Emit_Mov_RegRefMemRef						},
+	{ OP_MOV, MATCH_REG_REF, MATCH_MEM_REF, MATCH_NIL, MATCH_NIL, &CCodeGen_x86_64::Emit_Mov_RegRefMemRef },
 
 	ALU64_CONST_MATCHERS(OP_ADD64, ALUOP64_ADD)
 	ALU64_CONST_MATCHERS(OP_SUB64, ALUOP64_SUB)
@@ -231,29 +231,32 @@ CCodeGen_x86_64::CONSTMATCHER CCodeGen_x86_64::g_constMatchers[] =
 	SHIFT64_CONST_MATCHERS(OP_SRL64, SHIFTOP64_SRL)
 	SHIFT64_CONST_MATCHERS(OP_SRA64, SHIFTOP64_SRA)
 
-	{ OP_CMP64,			MATCH_REGISTER,		MATCH_RELATIVE64,	MATCH_RELATIVE64,	&CCodeGen_x86_64::Emit_Cmp64_RegRelRel						},
-	{ OP_CMP64,			MATCH_REGISTER,		MATCH_RELATIVE64,	MATCH_CONSTANT64,	&CCodeGen_x86_64::Emit_Cmp64_RegRelCst						},
-	{ OP_CMP64,			MATCH_MEMORY,		MATCH_RELATIVE64,	MATCH_RELATIVE64,	&CCodeGen_x86_64::Emit_Cmp64_MemRelRel						},
-	{ OP_CMP64,			MATCH_MEMORY,		MATCH_RELATIVE64,	MATCH_CONSTANT64,	&CCodeGen_x86_64::Emit_Cmp64_MemRelCst						},
+	{ OP_CMP, MATCH_VARIABLE, MATCH_VARIABLE, MATCH_VARIABLE, MATCH_NIL, &CCodeGen_x86_64::Emit_Cmp_VarVarVar },
+	{ OP_CMP, MATCH_VARIABLE, MATCH_VARIABLE, MATCH_CONSTANT, MATCH_NIL, &CCodeGen_x86_64::Emit_Cmp_VarVarCst },
 
-	{ OP_RELTOREF,		MATCH_VAR_REF,		MATCH_CONSTANT,		MATCH_NIL,			&CCodeGen_x86_64::Emit_RelToRef_VarCst						},
+	{ OP_CMP64, MATCH_REGISTER, MATCH_RELATIVE64, MATCH_RELATIVE64, MATCH_NIL, &CCodeGen_x86_64::Emit_Cmp64_RegRelRel },
+	{ OP_CMP64, MATCH_REGISTER, MATCH_RELATIVE64, MATCH_CONSTANT64, MATCH_NIL, &CCodeGen_x86_64::Emit_Cmp64_RegRelCst },
+	{ OP_CMP64, MATCH_MEMORY,   MATCH_RELATIVE64, MATCH_RELATIVE64, MATCH_NIL, &CCodeGen_x86_64::Emit_Cmp64_MemRelRel },
+	{ OP_CMP64, MATCH_MEMORY,   MATCH_RELATIVE64, MATCH_CONSTANT64, MATCH_NIL, &CCodeGen_x86_64::Emit_Cmp64_MemRelCst },
 
-	{ OP_ADDREF,		MATCH_VAR_REF,		MATCH_VAR_REF,		MATCH_VARIABLE,		&CCodeGen_x86_64::Emit_AddRef_VarVarVar						},
-	{ OP_ADDREF,		MATCH_VAR_REF,		MATCH_VAR_REF,		MATCH_CONSTANT,		&CCodeGen_x86_64::Emit_AddRef_VarVarCst						},
+	{ OP_RELTOREF, MATCH_VAR_REF, MATCH_CONSTANT, MATCH_NIL, MATCH_NIL, &CCodeGen_x86_64::Emit_RelToRef_VarCst },
 
-	{ OP_ISREFNULL,		MATCH_VARIABLE,		MATCH_VAR_REF,		MATCH_NIL,			&CCodeGen_x86_64::Emit_IsRefNull_VarVar						},
+	{ OP_ADDREF, MATCH_VAR_REF, MATCH_VAR_REF, MATCH_VARIABLE, MATCH_NIL, &CCodeGen_x86_64::Emit_AddRef_VarVarVar },
+	{ OP_ADDREF, MATCH_VAR_REF, MATCH_VAR_REF, MATCH_CONSTANT, MATCH_NIL, &CCodeGen_x86_64::Emit_AddRef_VarVarCst },
 
-	{ OP_LOADFROMREF,	MATCH_MEMORY64,		MATCH_VAR_REF,		MATCH_NIL,			&CCodeGen_x86_64::Emit_LoadFromRef_64_MemVar				},
-	{ OP_LOADFROMREF,	MATCH_VAR_REF,		MATCH_VAR_REF,		MATCH_NIL,			&CCodeGen_x86_64::Emit_LoadFromRef_Ref_VarVar				},
+	{ OP_ISREFNULL, MATCH_VARIABLE, MATCH_VAR_REF, MATCH_NIL, MATCH_NIL, &CCodeGen_x86_64::Emit_IsRefNull_VarVar },
 
-	{ OP_STOREATREF,	MATCH_NIL,			MATCH_VAR_REF,		MATCH_MEMORY64,		&CCodeGen_x86_64::Emit_StoreAtRef_64_VarMem					},
-	{ OP_STOREATREF,	MATCH_NIL,			MATCH_VAR_REF,		MATCH_CONSTANT64,	&CCodeGen_x86_64::Emit_StoreAtRef_64_VarCst					},
+	{ OP_LOADFROMREF, MATCH_MEMORY64, MATCH_VAR_REF, MATCH_NIL, MATCH_NIL, &CCodeGen_x86_64::Emit_LoadFromRef_64_MemVar },
+	{ OP_LOADFROMREF, MATCH_VAR_REF, MATCH_VAR_REF, MATCH_NIL, MATCH_NIL, &CCodeGen_x86_64::Emit_LoadFromRef_Ref_VarVar },
 
-	{ OP_STORE8ATREF,	MATCH_NIL,			MATCH_VAR_REF,		MATCH_VARIABLE,		&CCodeGen_x86_64::Emit_Store8AtRef_VarVar					},
+	{ OP_STOREATREF, MATCH_NIL, MATCH_VAR_REF, MATCH_MEMORY64, MATCH_NIL, &CCodeGen_x86_64::Emit_StoreAtRef_64_VarMem },
+	{ OP_STOREATREF, MATCH_NIL, MATCH_VAR_REF, MATCH_CONSTANT64, MATCH_NIL, &CCodeGen_x86_64::Emit_StoreAtRef_64_VarCst },
 
-	{ OP_CONDJMP,		MATCH_NIL,			MATCH_VAR_REF,		MATCH_CONSTANT,		&CCodeGen_x86_64::Emit_CondJmp_Ref_VarCst					},
+	{ OP_STORE8ATREF, MATCH_NIL, MATCH_VAR_REF, MATCH_VARIABLE, MATCH_NIL, &CCodeGen_x86_64::Emit_Store8AtRef_VarVar },
 
-	{ OP_MOV,			MATCH_NIL,			MATCH_NIL,			MATCH_NIL,			NULL														},
+	{ OP_CONDJMP, MATCH_NIL, MATCH_VAR_REF, MATCH_CONSTANT, MATCH_NIL, &CCodeGen_x86_64::Emit_CondJmp_Ref_VarCst },
+
+	{ OP_MOV, MATCH_NIL, MATCH_NIL, MATCH_NIL, MATCH_NIL, nullptr },
 };
 
 CCodeGen_x86_64::CCodeGen_x86_64()
@@ -264,11 +267,12 @@ CCodeGen_x86_64::CCodeGen_x86_64()
 	for(CONSTMATCHER* constMatcher = g_constMatchers; constMatcher->emitter != NULL; constMatcher++)
 	{
 		MATCHER matcher;
-		matcher.op			= constMatcher->op;
-		matcher.dstType		= constMatcher->dstType;
-		matcher.src1Type	= constMatcher->src1Type;
-		matcher.src2Type	= constMatcher->src2Type;
-		matcher.emitter		= std::bind(constMatcher->emitter, this, std::placeholders::_1);
+		matcher.op       = constMatcher->op;
+		matcher.dstType  = constMatcher->dstType;
+		matcher.src1Type = constMatcher->src1Type;
+		matcher.src2Type = constMatcher->src2Type;
+		matcher.src3Type = constMatcher->src3Type;
+		matcher.emitter  = std::bind(constMatcher->emitter, this, std::placeholders::_1);
 		m_matchers.insert(MatcherMapType::value_type(matcher.op, matcher));
 	}
 }
@@ -407,6 +411,12 @@ void CCodeGen_x86_64::Emit_Epilog()
 	}
 
 	m_assembler.Pop(CX86Assembler::rBP);
+}
+
+CX86Assembler::CAddress CCodeGen_x86_64::MakeConstant128Address(const LITERAL128& constant)
+{
+	auto literalId = m_assembler.CreateLiteral128(constant);
+	return CX86Assembler::MakeLiteral128Address(literalId);
 }
 
 void CCodeGen_x86_64::Emit_Param_Ctx(const STATEMENT& statement)
@@ -643,20 +653,52 @@ void CCodeGen_x86_64::Emit_Mov_RegRefMemRef(const STATEMENT& statement)
 	m_assembler.MovEq(m_registers[dst->m_valueLow], MakeMemoryReferenceSymbolAddress(src1));
 }
 
+void CCodeGen_x86_64::Emit_Cmp_VarVarVar(const STATEMENT& statement)
+{
+	auto dst = statement.dst->GetSymbol().get();
+	auto src1 = statement.src1->GetSymbol().get();
+	auto src2 = statement.src2->GetSymbol().get();
+
+	auto dstReg = PrepareSymbolRegisterDef(dst, CX86Assembler::rCX);
+	auto src1Reg = PrepareSymbolRegisterUse(src1, CX86Assembler::rDX);
+
+	m_assembler.CmpEd(src1Reg, MakeVariableSymbolAddress(src2));
+	Cmp_GetFlag(CX86Assembler::MakeRegisterAddress(dstReg), statement.jmpCondition);
+	m_assembler.MovzxEb(dstReg, CX86Assembler::MakeRegisterAddress(dstReg));
+
+	CommitSymbolRegister(dst, dstReg);
+}
+
+void CCodeGen_x86_64::Emit_Cmp_VarVarCst(const STATEMENT& statement)
+{
+	auto dst = statement.dst->GetSymbol().get();
+	auto src1 = statement.src1->GetSymbol().get();
+	auto src2 = statement.src2->GetSymbol().get();
+
+	auto dstReg = PrepareSymbolRegisterDef(dst, CX86Assembler::rCX);
+
+	m_assembler.CmpId(MakeVariableSymbolAddress(src1), src2->m_valueLow);
+	Cmp_GetFlag(CX86Assembler::MakeRegisterAddress(dstReg), statement.jmpCondition);
+	m_assembler.MovzxEb(dstReg, CX86Assembler::MakeRegisterAddress(dstReg));
+
+	CommitSymbolRegister(dst, dstReg);
+}
+
 void CCodeGen_x86_64::Cmp64_RelRel(CX86Assembler::REGISTER dstReg, const STATEMENT& statement)
 {
-	CSymbol* src1 = statement.src1->GetSymbol().get();
-	CSymbol* src2 = statement.src2->GetSymbol().get();
+	auto src1 = statement.src1->GetSymbol().get();
+	auto src2 = statement.src2->GetSymbol().get();
 
 	assert(src1->m_type == SYM_RELATIVE64);
 	assert(src2->m_type == SYM_RELATIVE64);
 
-	CX86Assembler::REGISTER tmpReg = CX86Assembler::rAX;
+	m_assembler.XorEd(dstReg, CX86Assembler::MakeRegisterAddress(dstReg));
+
+	auto tmpReg = CX86Assembler::rCX;
 	m_assembler.MovEq(tmpReg, MakeRelative64SymbolAddress(src1));
 	m_assembler.CmpEq(tmpReg, MakeRelative64SymbolAddress(src2));
 
-	Cmp_GetFlag(CX86Assembler::MakeByteRegisterAddress(tmpReg), statement.jmpCondition);
-	m_assembler.MovzxEb(dstReg, CX86Assembler::MakeByteRegisterAddress(tmpReg));
+	Cmp_GetFlag(CX86Assembler::MakeRegisterAddress(dstReg), statement.jmpCondition);
 }
 
 void CCodeGen_x86_64::Cmp64_RelCst(CX86Assembler::REGISTER dstReg, const STATEMENT& statement)
@@ -669,7 +711,9 @@ void CCodeGen_x86_64::Cmp64_RelCst(CX86Assembler::REGISTER dstReg, const STATEME
 
 	uint64 constant = CombineConstant64(src2->m_valueLow, src2->m_valueHigh);
 
-	auto tmpReg = CX86Assembler::rAX;
+	m_assembler.XorEd(dstReg, CX86Assembler::MakeRegisterAddress(dstReg));
+
+	auto tmpReg = CX86Assembler::rCX;
 	m_assembler.MovEq(tmpReg, MakeRelative64SymbolAddress(src1));
 	if(constant == 0)
 	{
@@ -688,8 +732,7 @@ void CCodeGen_x86_64::Cmp64_RelCst(CX86Assembler::REGISTER dstReg, const STATEME
 		m_assembler.CmpIq(CX86Assembler::MakeRegisterAddress(tmpReg), constant);
 	}
 
-	Cmp_GetFlag(CX86Assembler::MakeByteRegisterAddress(tmpReg), statement.jmpCondition);
-	m_assembler.MovzxEb(dstReg, CX86Assembler::MakeByteRegisterAddress(tmpReg));
+	Cmp_GetFlag(CX86Assembler::MakeRegisterAddress(dstReg), statement.jmpCondition);
 }
 
 void CCodeGen_x86_64::Emit_Cmp64_RegRelRel(const STATEMENT& statement)
@@ -778,12 +821,11 @@ void CCodeGen_x86_64::Emit_IsRefNull_VarVar(const STATEMENT& statement)
 	auto src1 = statement.src1->GetSymbol().get();
 
 	auto addressReg = PrepareRefSymbolRegisterUse(src1, CX86Assembler::rAX);
-	auto tstReg = CX86Assembler::rCX;
 	auto dstReg = PrepareSymbolRegisterDef(dst, CX86Assembler::rDX);
 
+	m_assembler.XorEd(dstReg, CX86Assembler::MakeRegisterAddress(dstReg));
 	m_assembler.TestEq(addressReg, CX86Assembler::MakeRegisterAddress(addressReg));
-	m_assembler.SeteEb(CX86Assembler::MakeByteRegisterAddress(tstReg));
-	m_assembler.MovzxEb(dstReg, CX86Assembler::MakeByteRegisterAddress(tstReg));
+	m_assembler.SeteEb(CX86Assembler::MakeRegisterAddress(dstReg));
 
 	CommitSymbolRegister(dst, dstReg);
 }

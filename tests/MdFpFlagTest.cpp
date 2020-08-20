@@ -8,32 +8,21 @@ void CMdFpFlagTest::Compile(Jitter::CJitter& jitter)
 
 	jitter.Begin();
 	{
-		//0
 		jitter.MD_PushRel(offsetof(CONTEXT, src0));
-		jitter.MD_IsNegative();
-		jitter.PullRel(offsetof(CONTEXT, dstIsNegative0));
-
-		jitter.MD_PushRel(offsetof(CONTEXT, src0));
-		jitter.MD_IsZero();
-		jitter.PullRel(offsetof(CONTEXT, dstIsZero0));
-
-		//1
-		jitter.MD_PushRel(offsetof(CONTEXT, src1));
-		jitter.MD_IsNegative();
-		jitter.PullRel(offsetof(CONTEXT, dstIsNegative1));
+		jitter.MD_MakeSignZero();
+		jitter.PullRel(offsetof(CONTEXT, dstSzStatus0));
 
 		jitter.MD_PushRel(offsetof(CONTEXT, src1));
-		jitter.MD_IsZero();
-		jitter.PullRel(offsetof(CONTEXT, dstIsZero1));
-
-		//2
-		jitter.MD_PushRel(offsetof(CONTEXT, src2));
-		jitter.MD_IsNegative();
-		jitter.PullRel(offsetof(CONTEXT, dstIsNegative2));
+		jitter.MD_MakeSignZero();
+		jitter.PullRel(offsetof(CONTEXT, dstSzStatus1));
 
 		jitter.MD_PushRel(offsetof(CONTEXT, src2));
-		jitter.MD_IsZero();
-		jitter.PullRel(offsetof(CONTEXT, dstIsZero2));
+		jitter.MD_MakeSignZero();
+		jitter.PullRel(offsetof(CONTEXT, dstSzStatus2));
+
+		jitter.MD_PushRel(offsetof(CONTEXT, src3));
+		jitter.MD_MakeSignZero();
+		jitter.PullRel(offsetof(CONTEXT, dstSzStatus3));
 	}
 	jitter.End();
 
@@ -64,14 +53,17 @@ void CMdFpFlagTest::Run()
 	context.src2[2] = -7.5f;
 	context.src2[3] = -8.5f;
 
+	//Test some weird numbers
+	//NOTE: On ARMv7 NEON, denormals are considered as 0, while they aren't on other archs.
+	context.src3[0] = 0x7FFFFFFF; //NaN
+	context.src3[1] = 0xFFFFFFFF; //NaN (negative)
+	context.src3[2] = 0x7F800000; //INF
+	context.src3[3] = 0xFF800000; //INF (negative)
+	
 	m_function(&context);
-
-	TEST_VERIFY(context.dstIsNegative0	== 0x5);
-	TEST_VERIFY(context.dstIsZero0		== 0x3);
-
-	TEST_VERIFY(context.dstIsNegative1	== 0x2);
-	TEST_VERIFY(context.dstIsZero1		== 0x0);
-
-	TEST_VERIFY(context.dstIsNegative2	== 0xB);
-	TEST_VERIFY(context.dstIsZero2		== 0x4);
+	
+	TEST_VERIFY(context.dstSzStatus0 == 0x53);
+	TEST_VERIFY(context.dstSzStatus1 == 0x20);
+	TEST_VERIFY(context.dstSzStatus2 == 0xB4);
+	TEST_VERIFY(context.dstSzStatus3 == 0x50);
 }

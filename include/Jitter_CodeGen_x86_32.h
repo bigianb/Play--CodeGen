@@ -27,6 +27,8 @@ namespace Jitter
 
 		void								Emit_Prolog(const StatementList&, unsigned int) override;
 		void								Emit_Epilog() override;
+		
+		CX86Assembler::CAddress				MakeConstant128Address(const LITERAL128&) override;
 
 		//PARAM
 		void								Emit_Param_Ctx(const STATEMENT&);
@@ -88,6 +90,10 @@ namespace Jitter
 		void								Emit_Sll64_MemMemReg(const STATEMENT&);
 		void								Emit_Sll64_MemMemMem(const STATEMENT&);
 		void								Emit_Sll64_MemMemCst(const STATEMENT&);
+
+		//CMP
+		void								Emit_Cmp_VarVarVar(const STATEMENT&);
+		void								Emit_Cmp_VarVarCst(const STATEMENT&);
 
 		//CMP64
 		void								Cmp64_Equal(const STATEMENT&);
@@ -161,8 +167,10 @@ namespace Jitter
 		ParamStack							m_params;
 		uint32								m_paramSpillBase = 0;
 		uint32								m_totalStackAlloc = 0;
+		uint32								m_literalStackAlloc = 0;
+		uint32								m_literalBase = 0;
+		int32								m_mdMakeSzConstantOffset = -1;
 		bool								m_hasImplicitRetValueParam = false;
 		bool								m_implicitRetValueParamFixUpRequired = false;
-
 	};
 }

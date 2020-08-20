@@ -3,6 +3,8 @@
 #include <string.h>
 #include <functional>
 #include <map>
+#include <vector>
+#include "Literal128.h"
 #include "Stream.h"
 #include "Types.h"
 
@@ -197,10 +199,13 @@ public:
 	void									MarkLabel(LABEL);
 	void									ResolveLabelReferences();
 	
+	void									ResolveLiteralReferences();
+
 	void									Adc(REGISTER, REGISTER, REGISTER);
 	void									Add(REGISTER, REGISTER, REGISTER);
 	void									Add(REGISTER, REGISTER, const ImmediateAluOperand&);
 	void									Adds(REGISTER, REGISTER, REGISTER);
+	void									Adrl(REGISTER, const LITERAL128&);
 	void									And(REGISTER, REGISTER, REGISTER);
 	void									And(REGISTER, REGISTER, const ImmediateAluOperand&);
 	void									BCc(CONDITION, LABEL);
@@ -226,7 +231,7 @@ public:
 	void									Movw(REGISTER, uint16);
 	void									Movt(REGISTER, uint16);
 	void									Mvn(REGISTER, REGISTER);
-	void									Mvn(REGISTER, const ImmediateAluOperand&);	
+	void									Mvn(REGISTER, const ImmediateAluOperand&);
 	void									Or(REGISTER, REGISTER, REGISTER);
 	void									Or(REGISTER, REGISTER, const ImmediateAluOperand&);
 	void									Or(CONDITION, REGISTER, REGISTER, const ImmediateAluOperand&);
@@ -262,11 +267,15 @@ public:
 	void									Vzip_I8(DOUBLE_REGISTER, DOUBLE_REGISTER);
 	void									Vzip_I16(DOUBLE_REGISTER, DOUBLE_REGISTER);
 	void									Vzip_I32(QUAD_REGISTER, QUAD_REGISTER);
+	void									Vtbl(DOUBLE_REGISTER, DOUBLE_REGISTER, DOUBLE_REGISTER);
 	void									Vadd_F32(SINGLE_REGISTER, SINGLE_REGISTER, SINGLE_REGISTER);
 	void									Vadd_F32(QUAD_REGISTER, QUAD_REGISTER, QUAD_REGISTER);
 	void									Vadd_I8(QUAD_REGISTER, QUAD_REGISTER, QUAD_REGISTER);
 	void									Vadd_I16(QUAD_REGISTER, QUAD_REGISTER, QUAD_REGISTER);
 	void									Vadd_I32(QUAD_REGISTER, QUAD_REGISTER, QUAD_REGISTER);
+	void									Vpaddl_I8(QUAD_REGISTER, QUAD_REGISTER);
+	void									Vpaddl_I16(QUAD_REGISTER, QUAD_REGISTER);
+	void									Vpaddl_I32(QUAD_REGISTER, QUAD_REGISTER);
 	void									Vqadd_U8(QUAD_REGISTER, QUAD_REGISTER, QUAD_REGISTER);
 	void									Vqadd_U16(QUAD_REGISTER, QUAD_REGISTER, QUAD_REGISTER);
 	void									Vqadd_U32(QUAD_REGISTER, QUAD_REGISTER, QUAD_REGISTER);
@@ -290,6 +299,7 @@ public:
 	void									Vorn(QUAD_REGISTER, QUAD_REGISTER, QUAD_REGISTER);
 	void									Vorr(QUAD_REGISTER, QUAD_REGISTER, QUAD_REGISTER);
 	void									Veor(QUAD_REGISTER, QUAD_REGISTER, QUAD_REGISTER);
+	void									Vmvn(QUAD_REGISTER, QUAD_REGISTER);
 	void									Vshl_I16(QUAD_REGISTER, QUAD_REGISTER, uint8);
 	void									Vshl_I32(QUAD_REGISTER, QUAD_REGISTER, uint8);
 	void									Vshr_U16(QUAD_REGISTER, QUAD_REGISTER, uint8);
@@ -303,9 +313,13 @@ public:
 	void									Vceq_I8(QUAD_REGISTER, QUAD_REGISTER, QUAD_REGISTER);
 	void									Vceq_I16(QUAD_REGISTER, QUAD_REGISTER, QUAD_REGISTER);
 	void									Vceq_I32(QUAD_REGISTER, QUAD_REGISTER, QUAD_REGISTER);
+	void									Vceqz_F32(QUAD_REGISTER, QUAD_REGISTER);
+	void									Vcge_F32(QUAD_REGISTER, QUAD_REGISTER, QUAD_REGISTER);
 	void									Vcgt_I8(QUAD_REGISTER, QUAD_REGISTER, QUAD_REGISTER);
 	void									Vcgt_I16(QUAD_REGISTER, QUAD_REGISTER, QUAD_REGISTER);
 	void									Vcgt_I32(QUAD_REGISTER, QUAD_REGISTER, QUAD_REGISTER);
+	void									Vcgt_F32(QUAD_REGISTER, QUAD_REGISTER, QUAD_REGISTER);
+	void									Vcltz_I32(QUAD_REGISTER, QUAD_REGISTER);
 	void									Vcmp_F32(SINGLE_REGISTER, SINGLE_REGISTER);
 	void									Vcmpz_F32(SINGLE_REGISTER);
 	void									Vcvt_F32_S32(SINGLE_REGISTER, SINGLE_REGISTER);
@@ -326,6 +340,8 @@ public:
 	void									Vmax_I32(QUAD_REGISTER, QUAD_REGISTER, QUAD_REGISTER);
 
 	static LdrAddress						MakeImmediateLdrAddress(int32);
+	static LdrAddress						MakeRegisterLdrAddress(REGISTER, SHIFT = SHIFT_LSL, uint8 = 0);
+
 	static ImmediateAluOperand				MakeImmediateAluOperand(uint8, uint8);
 	static RegisterAluOperand				MakeRegisterAluOperand(CAArch32Assembler::REGISTER, const AluLdrShift&);
 	
@@ -335,9 +351,18 @@ public:
 private:
 	typedef size_t LABELREF;
 	
+	struct LITERAL128REF
+	{
+		size_t offset = 0;
+		REGISTER rd = CAArch32Assembler::r0;
+		LITERAL128 value = LITERAL128(0, 0);
+	};
+
 	typedef std::map<LABEL, size_t> LabelMapType;
 	typedef std::multimap<LABEL, LABELREF> LabelReferenceMapType;
 	
+	typedef std::vector<LITERAL128REF> Literal128ArrayType;
+
 	void									GenericAlu(ALU_OPCODE, bool, REGISTER, REGISTER, REGISTER);
 	void									GenericAlu(ALU_OPCODE, bool, REGISTER, REGISTER, const ImmediateAluOperand&, CONDITION = CONDITION_AL);
 
@@ -357,6 +382,7 @@ private:
 	unsigned int							m_nextLabelId = 1;
 	LabelMapType							m_labels;
 	LabelReferenceMapType					m_labelReferences;
+	Literal128ArrayType						m_literal128Refs;
 	
 	Framework::CStream*						m_stream = nullptr;
 };
